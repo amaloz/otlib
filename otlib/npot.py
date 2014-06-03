@@ -6,12 +6,12 @@ class NPOTSender(object):
     def __init__(self, host, port):
         self._state = _np.init(host, repr(port), True)
 
-    def send(self, m0, m1):
-        _np.send(self._state, repr(m0), repr(m1))
+    def send(self, msgs):
+        _np.send(self._state, msgs)
 
 class NPOTReceiver(object):
     def __init__(self, host, port):
         self._state = _np.init(host, repr(port), False)
 
-    def receive(self, choice):
-        return _np.receive(self._state, choice)
+    def receive(self, N, choices):
+        return _np.receive(self._state, N, choices)

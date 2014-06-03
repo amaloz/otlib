@@ -4,24 +4,25 @@ from __future__ import print_function
 
 import argparse
 
-NITERS = 5
+NITERS = 80
+N = 2
 
 import time
 import otlib.npot as npot
 
 def sender(args):
     ot = npot.NPOTSender('127.0.0.1', 5000)
+    msgs = (('hi', 'bye'),) * NITERS
     start = time.time()
-    for _ in xrange(NITERS):
-        ot.send('hi', 'bye')
+    ot.send(msgs)
     end = time.time()
     print('Sender time (%d iterations): %f' % (NITERS, end - start))
 
 def receiver(args):
     ot = npot.NPOTReceiver('127.0.0.1', 5000)
+    choices = (1,) * NITERS
     start = time.time()
-    for _ in xrange(NITERS):
-        print(ot.receive(1))
+    print(ot.receive(N, choices))
     end = time.time()
     print('Receiver time (%d iterations): %f' % (NITERS, end - start))
 
