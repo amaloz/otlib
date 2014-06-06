@@ -6,17 +6,31 @@ __name__ = 'otlib'
 __version__ = '0.0'
 __author__ = 'Alex J. Malozemoff'
 
+extra_sources = [
+    'src/log.cpp',
+    'src/net.cpp',
+    'src/state.cpp',
+    'src/utils.cpp',
+]
+
 naorpinkas = Extension(
     'otlib._naorpinkas',
     libraries = ['gmp', 'ssl', 'crypto'],
     extra_compile_args = ['-g', '-Wall'],
     sources = [
         'src/_naorpinkas.cpp',
-        'src/net.cpp',
-        'src/utils.cpp',
-        'src/log.cpp',
-    ],
+    ] + extra_sources,
 )
+
+otextension = Extension(
+    'otlib._otextension',
+    libraries = ['gmp', 'ssl', 'crypto'],
+    extra_compile_args = ['-g', '-Wall'],
+    sources = [
+        'src/_otextension.cpp',
+    ] + extra_sources,
+)
+
 
 setup(
     name = __name__,
@@ -24,7 +38,7 @@ setup(
     author = __author__,
     description = 'Oblivious transfer library',
     packages = ['otlib'],
-    ext_modules=[naorpinkas],
+    ext_modules=[naorpinkas, otextension],
     test_suite = 't',
     classifiers = [
         'Topic :: Security :: Cryptography',

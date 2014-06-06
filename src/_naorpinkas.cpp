@@ -2,11 +2,11 @@
 
 #include "log.h"
 #include "net.h"
+#include "state.h"
 #include "utils.h"
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,51 +20,7 @@
 #include <gmp.h>
 #include <openssl/sha.h>
 
-#define RANDFILE "/dev/urandom"
-#define FIELD_SIZE 128          /* the field size in bytes */
-
-static const char *ifcp1024 = "B10B8F96A080E01DDE92DE5EAE5D54EC52C99FBCFB06A3C69A6A9DCA52D23B616073E28675A23D189838EF1E2EE652C013ECB4AEA906112324975C3CD49B83BFACCBDD7D90C4BD7098488E9C219A73724EFFD6FAE5644738FAA31A4FF55BCCC0A151AF5F0DC8B4BD45BF37DF365C1A65E68CFDA76D4DA708DF1FB2BC2E4A4371";
-static const char *ifcg1024 = "A4D1CBD5C3FD34126765A442EFB99905F8104DD258AC507FD6406CFF14266D31266FEA1E5C41564B777E690F5504F213160217B4B01B886A5E91547F9E2749F4D7FBD7D3B9A92EE1909D0D2263F80A76A6A24C087A091F531DBF0A0169B6A28AD662A4D18E73AFA32D779D5918D08BC8858F4DCEF97C2A24855E6EEB22B3B2E5";
-static const char *ifcq1024 = "F518AA8781A8DF278ABA4E7D64B7CB9D49462353";
-
 const char *tag = "OT-NP";
-
-struct params {
-    mpz_t p;
-    mpz_t g;
-    mpz_t q;
-    gmp_randstate_t rnd;
-};
-
-struct state {
-    struct params p;
-    int sockfd;
-    int serverfd;
-};
-
-static void
-random_element(mpz_t out, struct params *p)
-{
-    mpz_urandomb(out, p->rnd, FIELD_SIZE * 8);
-    mpz_mod(out, out, p->q);
-    mpz_powm(out, p->g, out, p->p);
-}
-
-static void
-state_destructor(PyObject *self)
-{
-    struct state *s;
-
-    s = (struct state *) PyCapsule_GetPointer(self, NULL);
-    if (s) {
-        mpz_clears(s->p.p, s->p.g, s->p.q, NULL);
-        gmp_randclear(s->p.rnd);
-        if (s->sockfd != -1)
-            close(s->sockfd);
-        if (s->serverfd != -1)
-            close(s->serverfd);
-    }
-}
 
 static PyObject *
 np_init(PyObject *self, PyObject *args)
@@ -72,47 +28,19 @@ np_init(PyObject *self, PyObject *args)
     PyObject *py_s;
     struct state *s;
     char *host, *port;
-    int isserver;
+    int length, isserver;
 
-    if (!PyArg_ParseTuple(args, "ssi", &host, &port, &isserver))
+    if (!PyArg_ParseTuple(args, "ssii", &host, &port, &length, &isserver))
         return NULL;
 
     s = (struct state *) pymalloc(sizeof(struct state));
     if (s == NULL)
         goto error;
 
-    mpz_init_set_str(s->p.p, ifcp1024, 16);
-    mpz_init_set_str(s->p.g, ifcg1024, 16);
-    mpz_init_set_str(s->p.q, ifcq1024, 16);
-    s->sockfd = -1;
-    s->serverfd = -1;
+    if (state_initialize(s, length) == 1)
+        goto error;
 
     // set_log_level(LOG_LEVEL_DEBUG);
-
-    /* seed random number generator */
-    {
-        int error = 0, file;
-        unsigned long seed;
-
-        if ((file = open(RANDFILE, O_RDONLY)) == -1) {
-            (void) fprintf(stderr, "Error opening %s\n", RANDFILE);
-            error = 1;
-        } else {
-            if (read(file, &seed, sizeof seed) == -1) {
-                (void) fprintf(stderr, "Error reading from %s\n", RANDFILE);
-                (void) close(file);
-                error = 1;
-            }
-        }
-        if (error) {
-            PyErr_SetString(PyExc_RuntimeError, "unable to seed randomness");
-            goto error;
-        } else {
-            gmp_randinit_default(s->p.rnd);
-            gmp_randseed_ui(s->p.rnd, seed);
-            (void) close(file);
-        }
-    }
 
     if (isserver) {
         struct sockaddr_storage their_addr;
@@ -136,6 +64,7 @@ np_init(PyObject *self, PyObject *args)
                   get_in_addr((struct sockaddr *) &their_addr),
                   addr, sizeof addr);
         (void) fprintf(stderr, "server: got connection from %s\n", addr);
+        gmp_randseed_ui(s->p.rnd, 4920220904692250194L);
 
     } else {
         s->sockfd = init_client(host, port);
@@ -143,6 +72,7 @@ np_init(PyObject *self, PyObject *args)
             PyErr_SetString(PyExc_RuntimeError, "client initialization failed");
             goto error;
         }
+        gmp_randseed_ui(s->p.rnd, 4849297678033891355L);
     }
 
     py_s = PyCapsule_New((void *) s, NULL, state_destructor);
@@ -153,9 +83,7 @@ np_init(PyObject *self, PyObject *args)
 
  error:
     if (s) {
-        mpz_clears(s->p.p, s->p.g, s->p.q, NULL);
-        gmp_randclear(s->p.rnd);
-        free(s);
+        state_cleanup(s);
     }
 
     return NULL;
@@ -191,6 +119,7 @@ np_send(PyObject *self, PyObject *args)
             PyErr_SetString(PyExc_TypeError, "unmatched input length");
             return NULL;
         }
+        // TODO: check that length of messages < s.length
     }
 
     mpz_inits(r, gr, pk0, NULL);
@@ -377,29 +306,30 @@ np_receive(PyObject *self, PyObject *args)
         mpz_powm(PKs, s->p.g, k, s->p.p);
         logger_mpz(LOG_LEVEL_DEBUG, tag, "PKs = ", PKs);
 
-        if (choice == 0) {
-            mpz_set(PK0, PKs);
-        } else {
-            (void) mpz_invert(PK0, PKs, s->p.p);
-            mpz_mul(PK0, PK0, Cs[choice - 1]);
-            mpz_mod(PK0, PK0, s->p.p);
-        }
+        (void) mpz_invert(PK0, PKs, s->p.p);
+        mpz_mul(PK0, PK0, Cs[choice - 1]);
+        mpz_mod(PK0, PK0, s->p.p);
+        mpz_set(PK0, choice == 0 ? PKs : PK0);
         logger_mpz(LOG_LEVEL_DEBUG, tag, "PK0 = ", PK0);
 
-        // compute (g^r)^k = PKs^r
-        mpz_powm(PKsr, gr, k, s->p.p);
-        logger_mpz(LOG_LEVEL_DEBUG, tag, "PKsr = ", PKsr);
-
         // send PK0 to sender
+
+        // TODO: BUG HERE.  Occassionally, PK0 is 127 bytes of size, which
+        // doesn't jive with how mpz_to_array works, causing bogus output.
         mpz_to_array(buf, PK0, sizeof buf);
         if (pysend(s->sockfd, buf, sizeof buf, 0) == -1) {
             err = 1;
             goto cleanup;
         }
 
+        // compute (g^r)^k = PKs^r
+        mpz_powm(PKsr, gr, k, s->p.p);
+        logger_mpz(LOG_LEVEL_DEBUG, tag, "PKsr = ", PKsr);
+
         for (int i = 0; i < N; ++i) {
             char h[SHA_DIGEST_LENGTH], out[SHA_DIGEST_LENGTH];
             SHA_CTX c;
+
             // get H xor M0 from sender
             if (pyrecv(s->sockfd, h, sizeof h, 0) == -1) {
                 err = 1;
@@ -435,7 +365,7 @@ np_receive(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef
-Methods[] = {
+methods[] = {
     {"init", np_init, METH_VARARGS, "initialize Naor-Pinkas OT."},
     {"send", np_send, METH_VARARGS, "sender operation for Naor-Pinkas OT."},
     {"receive", np_receive, METH_VARARGS, "receiver operation for Naor-Pinkas OT."},
@@ -445,5 +375,5 @@ Methods[] = {
 PyMODINIT_FUNC
 init_naorpinkas(void)
 {
-    (void) Py_InitModule("_naorpinkas", Methods);
+    (void) Py_InitModule("_naorpinkas", methods);
 }

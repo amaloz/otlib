@@ -43,7 +43,7 @@ state_initialize(struct state *s, long length)
     if (error) {
         PyErr_SetString(PyExc_RuntimeError, "unable to seed randomness");
     } else {
-        fprintf(stderr, "SEED = %lu\n", seed);
+        // fprintf(stderr, "SEED = %lu\n", seed);
         gmp_randinit_default(s->p.rnd);
         gmp_randseed_ui(s->p.rnd, seed);
         (void) close(file);

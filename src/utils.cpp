@@ -52,16 +52,8 @@ mpz_to_array(char *buf, const mpz_t n, const size_t buflen)
 {
     size_t len = 0;
     (void) mpz_export(buf, &len, 1, sizeof(char), 0, 0, n);
-
-    // if (len < buflen) {
-    //     fprintf(stderr, "BAM\n");
-    //     size_t i;
-    //     for (i = len; i < buflen; ++i) {
-    //         buf[i] = 0;
-    //     }
-    //     buf += (buflen - len);
-    //     (void) mpz_export(buf, &len, 1, sizeof(char), 0, 0, n);
-    // }
+    if (len != 128)
+        fprintf(stderr, "FAILURE\n");
 }
 
 void
