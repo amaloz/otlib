@@ -64,15 +64,12 @@ np_init(PyObject *self, PyObject *args)
                   get_in_addr((struct sockaddr *) &their_addr),
                   addr, sizeof addr);
         (void) fprintf(stderr, "server: got connection from %s\n", addr);
-        gmp_randseed_ui(s->p.rnd, 4920220904692250194L);
-
     } else {
         s->sockfd = init_client(host, port);
         if (s->sockfd == -1) {
             PyErr_SetString(PyExc_RuntimeError, "client initialization failed");
             goto error;
         }
-        gmp_randseed_ui(s->p.rnd, 4849297678033891355L);
     }
 
     py_s = PyCapsule_New((void *) s, NULL, state_destructor);
