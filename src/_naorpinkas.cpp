@@ -314,8 +314,6 @@ np_receive(PyObject *self, PyObject *args)
 
         // send PK0 to sender
 
-        // TODO: BUG HERE.  Occassionally, PK0 is 127 bytes of size, which
-        // doesn't jive with how mpz_to_array works, causing bogus output.
         mpz_to_array(buf, PK0, sizeof buf);
         if (pysend(s->sockfd, buf, sizeof buf, 0) == -1) {
             err = 1;

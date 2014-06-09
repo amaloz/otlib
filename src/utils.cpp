@@ -2,6 +2,7 @@
 
 #include <sys/socket.h>
 
+#include "state.h"
 #include "utils.h"
 
 void *
@@ -51,14 +52,13 @@ void
 mpz_to_array(char *buf, const mpz_t n, const size_t buflen)
 {
     size_t len = 0;
-    (void) mpz_export(buf, &len, 1, sizeof(char), 0, 0, n);
-    if (len != 128)
-        fprintf(stderr, "FAILURE\n");
+    memset(buf, '\0', FIELD_SIZE);
+    (void) mpz_export(buf, &len, -1, sizeof(char), 0, 0, n);
 }
 
 void
 array_to_mpz(mpz_t out, const char *buf, const size_t buflen)
 {
-    mpz_import(out, buflen, 1, sizeof(char), 0, 0, buf);
+    mpz_import(out, buflen, -1, sizeof(char), 0, 0, buf);
 }
 
