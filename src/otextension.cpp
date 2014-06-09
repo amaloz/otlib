@@ -6,7 +6,7 @@
 
 #define SECPARAM 80
 
-static PyObject *
+PyObject *
 otext_send(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_msgs;
@@ -34,16 +34,4 @@ otext_send(PyObject *self, PyObject *args)
     }
 
     Py_RETURN_NONE;
-}
-
-static PyMethodDef
-methods[] = {
-    {"send", otext_send, METH_VARARGS, "TODO."}, // TODO:
-    {NULL, NULL, 0, NULL}
-};
-
-PyMODINIT_FUNC
-init_otextension(void)
-{
-    (void) Py_InitModule("_otextension", methods);
 }

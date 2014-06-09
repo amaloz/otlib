@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse
 
-NITERS = 72
+NITERS = 80
 N = 2
 
 import time

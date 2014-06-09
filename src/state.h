@@ -20,16 +20,10 @@ struct state {
     int serverfd;
 };
 
+PyObject *
+state_init(PyObject *self, PyObject *args);
+
 void
 random_element(mpz_t out, struct params *p);
-
-int
-state_initialize(struct state *s, long length);
-
-void
-state_cleanup(struct state *s);
-
-void
-state_destructor(PyObject *self);
 
 #endif

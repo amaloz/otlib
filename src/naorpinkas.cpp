@@ -1,4 +1,4 @@
-#include <Python.h>
+#include "naorpinkas.h"
 
 #include "log.h"
 #include "net.h"
@@ -7,86 +7,16 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 
 #include <gmp.h>
 #include <openssl/sha.h>
 
 const char *tag = "OT-NP";
 
-static PyObject *
-np_init(PyObject *self, PyObject *args)
-{
-    PyObject *py_s;
-    struct state *s;
-    char *host, *port;
-    int length, isserver;
-
-    if (!PyArg_ParseTuple(args, "ssii", &host, &port, &length, &isserver))
-        return NULL;
-
-    s = (struct state *) pymalloc(sizeof(struct state));
-    if (s == NULL)
-        goto error;
-
-    if (state_initialize(s, length) == 1)
-        goto error;
-
-    // set_log_level(LOG_LEVEL_DEBUG);
-
-    if (isserver) {
-        struct sockaddr_storage their_addr;
-        socklen_t sin_size = sizeof their_addr;
-        char addr[INET6_ADDRSTRLEN];
-
-        s->serverfd = init_server(host, port);
-        if (s->serverfd == -1) {
-            PyErr_SetString(PyExc_RuntimeError, "server initialization failed");
-            goto error;
-        }
-        s->sockfd = accept(s->serverfd, (struct sockaddr *) &their_addr,
-                           &sin_size);
-        if (s->sockfd == -1) {
-            perror("accept");
-            (void) close(s->serverfd);
-            PyErr_SetString(PyExc_RuntimeError, "accept failed");
-        }
-
-        inet_ntop(their_addr.ss_family,
-                  get_in_addr((struct sockaddr *) &their_addr),
-                  addr, sizeof addr);
-        (void) fprintf(stderr, "server: got connection from %s\n", addr);
-    } else {
-        s->sockfd = init_client(host, port);
-        if (s->sockfd == -1) {
-            PyErr_SetString(PyExc_RuntimeError, "client initialization failed");
-            goto error;
-        }
-    }
-
-    py_s = PyCapsule_New((void *) s, NULL, state_destructor);
-    if (py_s == NULL)
-        goto error;
-
-    return py_s;
-
- error:
-    if (s) {
-        state_cleanup(s);
-    }
-
-    return NULL;
-}
-
-static PyObject *
+PyObject *
 np_send(PyObject *self, PyObject *args)
 {
     mpz_t r, gr, pk0;
@@ -239,7 +169,7 @@ np_send(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
 }
 
-static PyObject *
+PyObject *
 np_receive(PyObject *self, PyObject *args)
 {
     mpz_t k, gr, PK0, PKs, PKsr;
@@ -357,18 +287,4 @@ np_receive(PyObject *self, PyObject *args)
         return NULL;
     else
         return py_return;
-}
-
-static PyMethodDef
-methods[] = {
-    {"init", np_init, METH_VARARGS, "initialize Naor-Pinkas OT."},
-    {"send", np_send, METH_VARARGS, "sender operation for Naor-Pinkas OT."},
-    {"receive", np_receive, METH_VARARGS, "receiver operation for Naor-Pinkas OT."},
-    {NULL, NULL, 0, NULL}
-};
-
-PyMODINIT_FUNC
-init_naorpinkas(void)
-{
-    (void) Py_InitModule("_naorpinkas", methods);
 }
