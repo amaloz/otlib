@@ -4,32 +4,32 @@ from __future__ import print_function
 
 import argparse
 
-NITERS = 80
+NITERS = 16
 N = 2
+MAXLENGTH = 4
 
 import time
 import otlib.npot as npot
 import otlib.otext as otext
+import otlib._otlib as _ot
 
 def sender(args):
-    # ot = otext.OTExtSender('127.0.0.1', 5000)
-    # msgs = (('hi', 'bye'),) * NITERS
-    # ot.send(msgs)
-    ot = npot.NPOTSender('127.0.0.1', 5000, 160)
-    msgs = (('hi', 'bye'),) * NITERS
     start = time.time()
+    state = _ot.init('127.0.0.1', repr(5000), 80, True)
+    ot = otext.OTExtSender(state)
+    # ot = npot.NPOTSender(state)
+    msgs = (('hi', 'bye'),) * NITERS
     ot.send(msgs)
     end = time.time()
     print('Sender time (%d iterations): %f' % (NITERS, end - start))
 
 def receiver(args):
-    # ot = otext.OTExtReceiver('127.0.0.1', 5000)
-    # choices = (1,) * NITERS
-    # ot.receive(choices)
-    ot = npot.NPOTReceiver('127.0.0.1', 5000, 160)
-    choices = (1,) * NITERS
     start = time.time()
-    print(ot.receive(choices, N=N))
+    state = _ot.init('127.0.0.1', repr(5000), 80, False)
+    ot = otext.OTExtReceiver(state)
+    # ot = npot.NPOTReceiver(state)
+    choices = (0,) * NITERS
+    print(ot.receive(choices))
     end = time.time()
     print('Receiver time (%d iterations): %f' % (NITERS, end - start))
 

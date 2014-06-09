@@ -43,7 +43,7 @@ xorarray(char *a, const size_t alen, const char *b, const size_t blen)
     size_t i;
 
     assert(alen >= blen);
-    for (i = 0; i < alen; ++i) {
+    for (i = 0; i < blen; ++i) {
         a[i] ^= b[i];
     }
 }

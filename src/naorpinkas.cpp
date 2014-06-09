@@ -5,7 +5,6 @@
 #include "state.h"
 #include "utils.h"
 
-#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,12 +21,12 @@ np_send(PyObject *self, PyObject *args)
     mpz_t r, gr, pk0;
     mpz_t *Cs = NULL, *Crs = NULL, *pks = NULL;
     char buf[FIELD_SIZE];
-    char hash[SHA_DIGEST_LENGTH];
     PyObject *py_state, *py_msgs;
     long N, num_ots, err = 0;
+    int maxlength;
     struct state *s;
 
-    if (!PyArg_ParseTuple(args, "OO", &py_state, &py_msgs))
+    if (!PyArg_ParseTuple(args, "OOi", &py_state, &py_msgs, &maxlength))
         return NULL;
 
     s = (struct state *) PyCapsule_GetPointer(py_state, NULL);
@@ -40,13 +39,20 @@ np_send(PyObject *self, PyObject *args)
     if ((N = PySequence_Length(PySequence_GetItem(py_msgs, 0))) == -1)
         return NULL;
 
-    // check to make sure all inputs to the OTs are of the same length
-    for (int i = 1; i < num_ots; ++i) {
-        if (PySequence_Length(PySequence_GetItem(py_msgs, i)) != N) {
+    // check to make sure all OTs are 1-out-of-N OTs and all messages are of
+    // length <= maxlength
+    for (int j = 0; j < num_ots; ++j) {
+        PyObject *tuple = PySequence_GetItem(py_msgs, j);
+        if (PySequence_Length(tuple) != N) {
             PyErr_SetString(PyExc_TypeError, "unmatched input length");
             return NULL;
         }
-        // TODO: check that length of messages < s.length
+        for (int i = 0; i < N; ++i) {
+            if (PyString_Size(PySequence_GetItem(tuple, i)) > maxlength) {
+                PyErr_SetString(PyExc_TypeError, "message > maxlength");
+                return NULL;
+            }
+        }
     }
 
     mpz_inits(r, gr, pk0, NULL);
@@ -82,7 +88,6 @@ np_send(PyObject *self, PyObject *args)
         // compute C_i^r
         mpz_powm(Crs[i], Cs[i], r, s->p.p);
     }
-
     for (int i = 0; i < N; ++i) {
         mpz_init(pks[i]);
     }
@@ -102,12 +107,10 @@ np_send(PyObject *self, PyObject *args)
         }
     }
 
-    for (int ctr = 0; ctr < num_ots; ++ctr) {
+    for (int j = 0; j < num_ots; ++j) {
         PyObject *py_input;
-        Py_ssize_t mlen;
-        char *m;
 
-        py_input = PySequence_GetItem(py_msgs, ctr);
+        py_input = PySequence_GetItem(py_msgs, j);
         // get pk0 from receiver
         if (pyrecv(s->sockfd, buf, sizeof buf, 0) == -1) {
             err = 1;
@@ -129,6 +132,13 @@ np_send(PyObject *self, PyObject *args)
 
         for (int i = 0; i < N; ++i) {
             SHA_CTX c;
+            char hash[SHA_DIGEST_LENGTH];
+            Py_ssize_t mlen;
+            char *m;
+
+            // FIXME: make this more flexible
+            assert(maxlength <= (int) sizeof hash);
+
             mpz_to_array(buf, pks[i], sizeof buf);
             SHA1_Init(&c);
             SHA1_Update(&c, buf, sizeof buf);
@@ -136,8 +146,9 @@ np_send(PyObject *self, PyObject *args)
             SHA1_Final((unsigned char *) hash, &c);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
-            xorarray(hash, sizeof hash, m, mlen);
-            if (pysend(s->sockfd, hash, sizeof hash, 0) == -1) {
+            assert(mlen <= maxlength);
+            xorarray(hash, maxlength, m, mlen);
+            if (pysend(s->sockfd, hash, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
@@ -177,9 +188,10 @@ np_receive(PyObject *self, PyObject *args)
     char buf[FIELD_SIZE];
     struct state *s;
     PyObject *py_state, *py_choices, *py_return = NULL;
-    int N, num_ots, err = 0;
+    int num_ots, err = 0;
+    int N, maxlength;
 
-    if (!PyArg_ParseTuple(args, "OiO", &py_state, &N, &py_choices))
+    if (!PyArg_ParseTuple(args, "OOii", &py_state, &py_choices, &N, &maxlength))
         return NULL;
 
     s = (struct state *) PyCapsule_GetPointer(py_state, NULL);
@@ -221,10 +233,10 @@ np_receive(PyObject *self, PyObject *args)
 
     py_return = PyTuple_New(num_ots);
 
-    for (int ctr = 0; ctr < num_ots; ++ctr) {
+    for (int j = 0; j < num_ots; ++j) {
         long choice;
 
-        choice = PyLong_AsLong(PySequence_GetItem(py_choices, ctr));
+        choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
         // choose random k
         mpz_urandomb(k, s->p.rnd, FIELD_SIZE * 8);
         mpz_mod(k, k, s->p.q);
@@ -234,7 +246,7 @@ np_receive(PyObject *self, PyObject *args)
         logger_mpz(LOG_LEVEL_DEBUG, tag, "PKs = ", PKs);
 
         (void) mpz_invert(PK0, PKs, s->p.p);
-        mpz_mul(PK0, PK0, Cs[choice - 1]);
+        mpz_mul(PK0, PK0, Cs[0]);
         mpz_mod(PK0, PK0, s->p.p);
         mpz_set(PK0, choice == 0 ? PKs : PK0);
         logger_mpz(LOG_LEVEL_DEBUG, tag, "PK0 = ", PK0);
@@ -255,8 +267,11 @@ np_receive(PyObject *self, PyObject *args)
             char h[SHA_DIGEST_LENGTH], out[SHA_DIGEST_LENGTH];
             SHA_CTX c;
 
+            assert(maxlength <= (int) sizeof h);
+
+            memset(h, '\0', sizeof h);
             // get H xor M0 from sender
-            if (pyrecv(s->sockfd, h, sizeof h, 0) == -1) {
+            if (pyrecv(s->sockfd, h, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
@@ -265,9 +280,16 @@ np_receive(PyObject *self, PyObject *args)
             (void) SHA1_Update(&c, buf, sizeof buf);
             (void) SHA1_Update(&c, &i, sizeof i);
             (void) SHA1_Final((unsigned char *) out, &c);
-            xorarray(out, sizeof out, h, sizeof h);
+            xorarray(out, maxlength, h, maxlength);
+            memset(out + maxlength, '\0', sizeof out - maxlength);
             if (i == choice) {
-                PyTuple_SetItem(py_return, ctr, PyBytes_FromString(out));
+                PyObject *str = PyString_FromString(out);
+                if (str == NULL) {
+                    err = 1;
+                    goto cleanup;
+                } else {
+                    PyTuple_SetItem(py_return, j, str);
+                }
             }
         }
     }
