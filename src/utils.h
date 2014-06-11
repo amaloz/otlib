@@ -21,6 +21,9 @@ extern void __assert_fail (const char *__assertion, const char *__file,
 #define MAX(a, b)                               \
     (a) > (b) ? (a) : (b)
 
+double
+current_time(void);
+
 void *
 pymalloc(size_t size);
 

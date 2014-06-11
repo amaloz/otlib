@@ -4,10 +4,10 @@ from __future__ import print_function
 
 import argparse, random
 
-NITERS = 320
+NITERS = 80
 N = 2
 # FIXME: ot extension seems to start breaking down when MAXLENGTH >= 40
-MAXLENGTH = 30
+MAXLENGTH = 10
 
 import time
 import otlib.npot as npot

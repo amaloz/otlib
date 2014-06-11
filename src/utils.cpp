@@ -1,9 +1,18 @@
 #include <Python.h>
 
 #include <sys/socket.h>
+#include <sys/time.h>
 
 #include "state.h"
 #include "utils.h"
+
+double
+current_time(void)
+{
+    struct timeval t;
+    (void) gettimeofday(&t, NULL);
+    return (double) (t.tv_sec + (double) (t.tv_usec / 1000000.0));
+}
 
 void *
 pymalloc(size_t size)
