@@ -39,12 +39,7 @@ class OTExtSender(object):
         ot = npot.NPOTReceiver(self._state)
         s = [random.randint(0, 1) for _ in xrange(SECPARAM)]
         Q = ot.receive(s, len(msgs) / 8)
-        print(Q)
-        for col in Q:
-            print(''.join('%08d' % int(bin(ord(c))[2:]) for c in col))
         Q = transpose(Q, len(msgs))
-        # for col in Q:
-        #     print(''.join('%08d' % int(bin(ord(c))[2:]) for c in col))
         s = binstr2bytes(''.join([str(e) for e in s]))
         _ot.otext_send(self._state, msgs, s, Q)
 
@@ -61,6 +56,4 @@ class OTExtReceiver(object):
         inputs = [(t, xor(r, t)) for t in T]
         ot.send(inputs, m / 8)
         T = transpose(T, m)
-        # for col in T:
-        #     print(''.join('%08d' % int(bin(ord(c))[2:]) for c in col))
         print(_ot.otext_receive(self._state, choices, T))

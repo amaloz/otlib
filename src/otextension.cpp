@@ -37,18 +37,16 @@ otext_send(PyObject *self, PyObject *args)
             Py_ssize_t mlen, qlen;
             char hash[SHA_DIGEST_LENGTH];
 
-            (void) memset(hash, '\0', sizeof hash);
             (void) SHA1_Init(&c);
             (void) SHA1_Update(&c, &j, sizeof j);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_qt, j),
                                            &q, &qlen);
-            // xorarray(hash, sizeof hash, q, qlen);
-            // if (i == 1) {
-            //     xorarray(hash, sizeof hash, s, slen);
-            // }
-            // (void) SHA1_Update(&c, hash, sizeof hash);
-            (void) SHA1_Update(&c, q, qlen);
-            // fprintf(stderr, "%ld\n", qlen);
+            (void) memset(hash, '\0', sizeof hash);
+            xorarray(hash, sizeof hash, q, qlen);
+            if (i == 1) {
+                xorarray(hash, sizeof hash, s, slen);
+            }
+            (void) SHA1_Update(&c, hash, sizeof hash);
             (void) SHA1_Final((unsigned char *) hash, &c);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
@@ -89,14 +87,14 @@ otext_receive(PyObject *self, PyObject *args)
 
     for (int j = 0; j < m; ++j) {
         int choice;
-        char *t;
-        Py_ssize_t tlen;
-        char from[SHA_DIGEST_LENGTH], hash[SHA_DIGEST_LENGTH];
 
         choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
 
         for (int i = 0; i < 2; ++i) {
             SHA_CTX c;
+            char from[SHA_DIGEST_LENGTH], hash[SHA_DIGEST_LENGTH];
+            char *t;
+            Py_ssize_t tlen;
 
             if (pyrecv(st->sockfd, from, sizeof from, 0) == -1) {
                 err = 1;
@@ -107,8 +105,10 @@ otext_receive(PyObject *self, PyObject *args)
             (void) SHA1_Update(&c, &j, sizeof j);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_T, j),
                                            &t, &tlen);
-            // fprintf(stderr, "%ld\n", tlen);
-            (void) SHA1_Update(&c, t, tlen);
+            assert(tlen <= (int) sizeof hash);
+            (void) memset(hash, '\0', sizeof hash);
+            (void) memcpy(hash, t, tlen);
+            (void) SHA1_Update(&c, hash, sizeof hash);
             (void) SHA1_Final((unsigned char *) hash, &c);
             if (i == choice) {
                 xorarray(from, sizeof from, hash, sizeof hash);

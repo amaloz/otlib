@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse
 
-NITERS = 16
+NITERS = 160
 N = 2
 MAXLENGTH = 4
 
@@ -28,7 +28,7 @@ def receiver(args):
     state = _ot.init('127.0.0.1', repr(5000), 80, False)
     ot = otext.OTExtReceiver(state)
     # ot = npot.NPOTReceiver(state)
-    choices = (0,) * NITERS
+    choices = (1,) * NITERS
     print(ot.receive(choices))
     end = time.time()
     print('Receiver time (%d iterations): %f' % (NITERS, end - start))

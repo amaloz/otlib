@@ -283,7 +283,7 @@ np_receive(PyObject *self, PyObject *args)
             xorarray(out, maxlength, h, maxlength);
             memset(out + maxlength, '\0', sizeof out - maxlength);
             if (i == choice) {
-                PyObject *str = PyString_FromString(out);
+                PyObject *str = PyString_FromStringAndSize(out, maxlength);
                 if (str == NULL) {
                     err = 1;
                     goto cleanup;
