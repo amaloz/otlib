@@ -49,7 +49,6 @@ np_send(PyObject *self, PyObject *args)
     long N, num_ots, err = 0;
     int maxlength;
     struct state *s;
-    double start, end;
 
     if (!PyArg_ParseTuple(args, "OOi", &py_state, &py_msgs, &maxlength))
         return NULL;
@@ -107,7 +106,6 @@ np_send(PyObject *self, PyObject *args)
         mpz_init(pk0s[i]);
     }
 
-    start = current_time();
     // choose r \in_R Zq
     random_element(r, &s->p);
     // compute g^r
@@ -118,10 +116,7 @@ np_send(PyObject *self, PyObject *args)
         mpz_inits(Cs[i], Crs[i], NULL);
         random_element(Cs[i], &s->p);
     }
-    end = current_time();
-    fprintf(stderr, "COMPUTE: r, g^r, C_i: %f\n", end - start);
 
-    start = current_time();
     // send g^r to receiver
     mpz_to_array(buf, gr, sizeof buf);
     if (pysend(s->sockfd, buf, sizeof buf, 0) == -1) {
@@ -136,18 +131,12 @@ np_send(PyObject *self, PyObject *args)
             goto cleanup;
         }
     }
-    end = current_time();
-    fprintf(stderr, "SEND: g^r, Cs: %f\n", end - start);
 
-    start = current_time();
     for (int i = 0; i < N - 1; ++i) {
         // compute C_i^r
         mpz_powm(Crs[i], Cs[i], r, s->p.p);
     }
-    end = current_time();
-    fprintf(stderr, "COMPUTE: C_i^r: %f\n", end - start);
 
-    start = current_time();
     for (int j = 0; j < num_ots; ++j) {
         // get pk0 from receiver
         if (pyrecv(s->sockfd, buf, sizeof buf, 0) == -1) {
@@ -156,15 +145,12 @@ np_send(PyObject *self, PyObject *args)
         }
         array_to_mpz(pk0s[j], buf, sizeof buf);
     }
-    end = current_time();
-    fprintf(stderr, "RECEIVE: pk0s: %f\n", end - start);
 
     for (int j = 0; j < num_ots; ++j) {
         PyObject *py_input;
 
         py_input = PySequence_GetItem(py_msgs, j);
 
-        start = current_time();
         for (int i = 0; i < N; ++i) {
             Py_ssize_t mlen;
             char *m;
@@ -173,9 +159,9 @@ np_send(PyObject *self, PyObject *args)
                 // compute pk0^r
                 mpz_powm(pk0, pk0s[j], r, s->p.p);
                 mpz_to_array(buf, pk0, sizeof buf);
+                (void) mpz_invert(pk0, pk0, s->p.p);
             } else {
-                (void) mpz_invert(pk, pk0, s->p.p);
-                mpz_mul(pk, pk, Crs[i - 1]);
+                mpz_mul(pk, pk0, Crs[i - 1]);
                 mpz_mod(pk, pk, s->p.p);
                 mpz_to_array(buf, pk, sizeof buf);
             }
@@ -189,8 +175,6 @@ np_send(PyObject *self, PyObject *args)
                 goto cleanup;
             }
         }
-        end = current_time();
-        fprintf(stderr, "SEND: hashes: %f\n", end - start);
     }
 
  cleanup:
@@ -231,7 +215,6 @@ np_receive(PyObject *self, PyObject *args)
     PyObject *py_state, *py_choices, *py_return = NULL;
     int num_ots, err = 0;
     int N, maxlength;
-    double start, end;
 
     if (!PyArg_ParseTuple(args, "OOii", &py_state, &py_choices, &N, &maxlength))
         return NULL;
@@ -274,17 +257,13 @@ np_receive(PyObject *self, PyObject *args)
         mpz_init(ks[j]);
     }
 
-    start = current_time();
     // get g^r from sender
     if (pyrecv(s->sockfd, buf, sizeof buf, 0) == -1) {
         err = 1;
         goto cleanup;
     }
     array_to_mpz(gr, buf, sizeof buf);
-    end = current_time();
-    fprintf(stderr, "RECEIVE: g^r: %f\n", end - start);
 
-    start = current_time();
     // get Cs from sender
     for (int i = 0; i < N - 1; ++i) {
         if (pyrecv(s->sockfd, buf, sizeof buf, 0) == -1) {
@@ -293,10 +272,7 @@ np_receive(PyObject *self, PyObject *args)
         }
         array_to_mpz(Cs[i], buf, sizeof buf);
     }
-    end = current_time();
-    fprintf(stderr, "RECEIVE: Cs: %f\n", end - start);
 
-    start = current_time();
     for (int j = 0; j < num_ots; ++j) {
         long choice;
 
@@ -306,37 +282,34 @@ np_receive(PyObject *self, PyObject *args)
         mpz_mod(ks[j], ks[j], s->p.q);
         // compute pks = g^k
         mpz_powm(pks, s->p.g, ks[j], s->p.p);
+        // compute pk0 = C_1 / g^k regardless of whether our choice is 0 or 1 to
+        // avoid a potential side-channel attack
         (void) mpz_invert(pk0, pks, s->p.p);
         mpz_mul(pk0, pk0, Cs[0]);
         mpz_mod(pk0, pk0, s->p.p);
         mpz_set(pk0, choice == 0 ? pks : pk0);
         mpz_to_array(buf, pk0, sizeof buf);
-
         // send pk0 to sender
         if (pysend(s->sockfd, buf, sizeof buf, 0) == -1) {
             err = 1;
             goto cleanup;
         }
     }
-    end = current_time();
-    fprintf(stderr, "SEND: pk0s: %f\n", end - start);
 
     for (int j = 0; j < num_ots; ++j) {
         long choice;
 
         choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
 
-        // compute (g^r)^k = pks^r
+        // compute decryption key (g^r)^k
         mpz_powm(ks[j], gr, ks[j], s->p.p);
 
-        start = current_time();
         for (int i = 0; i < N; ++i) {
             // get H xor M0 from sender
             if (pyrecv(s->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
-
             mpz_to_array(buf, ks[j], sizeof buf);
             build_hash(from, buf, i, maxlength);
             xorarray(msg, maxlength, from, maxlength);
@@ -350,8 +323,6 @@ np_receive(PyObject *self, PyObject *args)
                 }
             }
         }
-        end = current_time();
-        fprintf(stderr, "RECEIVE: hashes: %f\n", end - start);
     }
 
  cleanup:
