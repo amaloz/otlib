@@ -34,20 +34,20 @@ class OTExtSender(object):
     def __init__(self, state):
         self._state = state
 
-    def send(self, msgs):
+    def send(self, msgs, maxlength):
         assert len(msgs) % 8 == 0, "length of 'msgs' must be divisible by 8"
         ot = npot.NPOTReceiver(self._state)
         s = [random.randint(0, 1) for _ in xrange(SECPARAM)]
         Q = ot.receive(s, len(msgs) / 8)
         Q = transpose(Q, len(msgs))
         s = binstr2bytes(''.join([str(e) for e in s]))
-        _ot.otext_send(self._state, msgs, s, Q)
+        _ot.otext_send(self._state, msgs, maxlength, s, Q)
 
 class OTExtReceiver(object):
     def __init__(self, state):
         self._state = state
 
-    def receive(self, choices):
+    def receive(self, choices, maxlength):
         ot = npot.NPOTSender(self._state)
         m = len(choices)
         assert m % 8 == 0, "length of 'choices' must be divisible by 8"
@@ -56,4 +56,4 @@ class OTExtReceiver(object):
         inputs = [(t, xor(r, t)) for t in T]
         ot.send(inputs, m / 8)
         T = transpose(T, m)
-        print(_ot.otext_receive(self._state, choices, T))
+        return _ot.otext_receive(self._state, choices, maxlength, T)

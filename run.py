@@ -4,9 +4,10 @@ from __future__ import print_function
 
 import argparse, random
 
-NITERS = 160
+NITERS = 320
 N = 2
-MAXLENGTH = 40
+# FIXME: ot extension seems to start breaking down when MAXLENGTH >= 40
+MAXLENGTH = 30
 
 import time
 import otlib.npot as npot
@@ -22,7 +23,7 @@ def sender(args):
     if args.test_otext:
         start = time.time()
         ot = otext.OTExtSender(state)
-        ot.send(msgs)
+        ot.send(msgs, MAXLENGTH)
         end = time.time()
         print('Sender time (%d iterations): %f' % (NITERS, end - start))
     if args.test_npot:
@@ -41,7 +42,7 @@ def receiver(args):
     if args.test_otext:
         start = time.time()
         ot = otext.OTExtReceiver(state)
-        r = ot.receive(choices)
+        r = ot.receive(choices, MAXLENGTH)
         end = time.time()
         print(r)
         print('Receiver time (%d iterations): %f' % (NITERS, end - start))

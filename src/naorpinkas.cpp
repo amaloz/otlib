@@ -15,6 +15,30 @@
 
 const char *tag = "OT-NP";
 
+static void
+build_hash(char *final, char *buf, int index, const int maxlength)
+{
+    int length = 0;
+    while (length < maxlength) {
+        SHA_CTX c;
+        char hash[SHA_DIGEST_LENGTH];
+        int n;
+
+        (void) SHA1_Init(&c);
+        if (length == 0) {
+            (void) SHA1_Update(&c, buf, sizeof buf);
+            (void) SHA1_Update(&c, &index, sizeof index);
+            (void) SHA1_Final((unsigned char *) hash, &c);
+        } else {
+            (void) SHA1_Update(&c, final + length - sizeof hash, sizeof hash);
+            (void) SHA1_Final((unsigned char *) hash, &c);
+        }
+        n = MIN(maxlength - length, (int) sizeof hash);
+        (void) memcpy(final + length, hash, n);
+        length += n;
+    }
+}
+
 PyObject *
 np_send(PyObject *self, PyObject *args)
 {
@@ -138,27 +162,9 @@ np_send(PyObject *self, PyObject *args)
         for (int i = 0; i < N; ++i) {
             Py_ssize_t mlen;
             char *m;
-            int length = 0;
 
-            while (length < maxlength) {
-                SHA_CTX c;
-                char hash[SHA_DIGEST_LENGTH];
-                int n;
-
-                (void) SHA1_Init(&c);
-                if (length == 0) {
-                    mpz_to_array(buf, pks[i], sizeof buf);
-                    (void) SHA1_Update(&c, buf, sizeof buf);
-                    (void) SHA1_Update(&c, &i, sizeof i);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                } else {
-                    (void) SHA1_Update(&c, msg + length - sizeof hash, sizeof hash);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                }
-                n = MIN(maxlength - length, (int) sizeof hash);
-                (void) memcpy(msg + length, hash, n);
-                length += n;
-            }
+            mpz_to_array(buf, pks[i], sizeof buf);
+            build_hash(msg, buf, i, maxlength);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= maxlength);
@@ -291,33 +297,14 @@ np_receive(PyObject *self, PyObject *args)
         logger_mpz(LOG_LEVEL_DEBUG, tag, "PKsr = ", PKsr);
 
         for (int i = 0; i < N; ++i) {
-            int length = 0;
-
             // get H xor M0 from sender
             if (pyrecv(s->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
 
-            while (length < maxlength) {
-                SHA_CTX c;
-                char hash[SHA_DIGEST_LENGTH];
-                int n;
-
-                (void) SHA1_Init(&c);
-                if (length == 0) {
-                    mpz_to_array(buf, PKsr, sizeof buf);
-                    (void) SHA1_Update(&c, buf, sizeof buf);
-                    (void) SHA1_Update(&c, &i, sizeof i);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                } else {
-                    (void) SHA1_Update(&c, from + length - sizeof hash, sizeof hash);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                }
-                n = MIN(maxlength - length, (int) sizeof hash);
-                (void) memcpy(from + length, hash, n);
-                length += n;
-            }
+            mpz_to_array(buf, PKsr, sizeof buf);
+            build_hash(from, buf, i, maxlength);
             xorarray(msg, maxlength, from, maxlength);
             if (i == choice) {
                 PyObject *str = PyString_FromStringAndSize(msg, maxlength);
