@@ -20,7 +20,7 @@ np_send(PyObject *self, PyObject *args)
 {
     mpz_t r, gr, pk0;
     mpz_t *Cs = NULL, *Crs = NULL, *pks = NULL;
-    char buf[FIELD_SIZE];
+    char buf[FIELD_SIZE], *msg = NULL;
     PyObject *py_state, *py_msgs;
     long N, num_ots, err = 0;
     int maxlength;
@@ -67,8 +67,13 @@ np_send(PyObject *self, PyObject *args)
         err = 1;
         goto cleanup;
     }
-    pks = (mpz_t *) malloc(sizeof(mpz_t) * N);
+    pks = (mpz_t *) pymalloc(sizeof(mpz_t) * N);
     if (pks == NULL) {
+        err = 1;
+        goto cleanup;
+    }
+    msg = (char *) pymalloc(sizeof(char) * maxlength);
+    if (msg == NULL) {
         err = 1;
         goto cleanup;
     }
@@ -131,24 +136,34 @@ np_send(PyObject *self, PyObject *args)
         }
 
         for (int i = 0; i < N; ++i) {
-            SHA_CTX c;
-            char hash[SHA_DIGEST_LENGTH];
             Py_ssize_t mlen;
             char *m;
+            int length = 0;
 
-            // FIXME: make this more flexible
-            assert(maxlength <= (int) sizeof hash);
+            while (length < maxlength) {
+                SHA_CTX c;
+                char hash[SHA_DIGEST_LENGTH];
+                int n;
 
-            mpz_to_array(buf, pks[i], sizeof buf);
-            SHA1_Init(&c);
-            SHA1_Update(&c, buf, sizeof buf);
-            SHA1_Update(&c, &i, sizeof i);
-            SHA1_Final((unsigned char *) hash, &c);
+                (void) SHA1_Init(&c);
+                if (length == 0) {
+                    mpz_to_array(buf, pks[i], sizeof buf);
+                    (void) SHA1_Update(&c, buf, sizeof buf);
+                    (void) SHA1_Update(&c, &i, sizeof i);
+                    (void) SHA1_Final((unsigned char *) hash, &c);
+                } else {
+                    (void) SHA1_Update(&c, msg + length - sizeof hash, sizeof hash);
+                    (void) SHA1_Final((unsigned char *) hash, &c);
+                }
+                n = MIN(maxlength - length, (int) sizeof hash);
+                (void) memcpy(msg + length, hash, n);
+                length += n;
+            }
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= maxlength);
-            xorarray(hash, maxlength, m, mlen);
-            if (pysend(s->sockfd, hash, maxlength, 0) == -1) {
+            xorarray(msg, maxlength, m, mlen);
+            if (pysend(s->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
@@ -173,6 +188,8 @@ np_send(PyObject *self, PyObject *args)
             mpz_clear(pks[i]);
         free(pks);
     }
+    if (msg)
+        free(msg);
 
     if (err)
         return NULL;
@@ -185,7 +202,7 @@ np_receive(PyObject *self, PyObject *args)
 {
     mpz_t k, gr, PK0, PKs, PKsr;
     mpz_t *Cs = NULL;
-    char buf[FIELD_SIZE];
+    char buf[FIELD_SIZE], *from = NULL, *msg = NULL;
     struct state *s;
     PyObject *py_state, *py_choices, *py_return = NULL;
     int num_ots, err = 0;
@@ -201,14 +218,24 @@ np_receive(PyObject *self, PyObject *args)
     if ((num_ots = PySequence_Length(py_choices)) == -1)
         return NULL;
 
-    Cs = (mpz_t *) malloc(sizeof(mpz_t) * (N - 1));
-    if (Cs == NULL) {
+    mpz_inits(k, gr, PK0, PKs, PKsr, NULL);
+
+    msg = (char *) pymalloc(sizeof(char) * maxlength);
+    if (msg == NULL) {
+        err = 1;
+        goto cleanup;
+    }
+    from = (char *) pymalloc(sizeof(char) * maxlength);
+    if (from == NULL) {
         err = 1;
         goto cleanup;
     }
 
-    mpz_inits(k, gr, PK0, PKs, PKsr, NULL);
-
+    Cs = (mpz_t *) pymalloc(sizeof(mpz_t) * (N - 1));
+    if (Cs == NULL) {
+        err = 1;
+        goto cleanup;
+    }
     for (int i = 0; i < N - 1; ++i) {
         mpz_init(Cs[i]);
     }
@@ -264,26 +291,36 @@ np_receive(PyObject *self, PyObject *args)
         logger_mpz(LOG_LEVEL_DEBUG, tag, "PKsr = ", PKsr);
 
         for (int i = 0; i < N; ++i) {
-            char h[SHA_DIGEST_LENGTH], out[SHA_DIGEST_LENGTH];
-            SHA_CTX c;
+            int length = 0;
 
-            assert(maxlength <= (int) sizeof h);
-
-            memset(h, '\0', sizeof h);
             // get H xor M0 from sender
-            if (pyrecv(s->sockfd, h, maxlength, 0) == -1) {
+            if (pyrecv(s->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
-            mpz_to_array(buf, PKsr, sizeof buf);
-            (void) SHA1_Init(&c);
-            (void) SHA1_Update(&c, buf, sizeof buf);
-            (void) SHA1_Update(&c, &i, sizeof i);
-            (void) SHA1_Final((unsigned char *) out, &c);
-            xorarray(out, maxlength, h, maxlength);
-            memset(out + maxlength, '\0', sizeof out - maxlength);
+
+            while (length < maxlength) {
+                SHA_CTX c;
+                char hash[SHA_DIGEST_LENGTH];
+                int n;
+
+                (void) SHA1_Init(&c);
+                if (length == 0) {
+                    mpz_to_array(buf, PKsr, sizeof buf);
+                    (void) SHA1_Update(&c, buf, sizeof buf);
+                    (void) SHA1_Update(&c, &i, sizeof i);
+                    (void) SHA1_Final((unsigned char *) hash, &c);
+                } else {
+                    (void) SHA1_Update(&c, from + length - sizeof hash, sizeof hash);
+                    (void) SHA1_Final((unsigned char *) hash, &c);
+                }
+                n = MIN(maxlength - length, (int) sizeof hash);
+                (void) memcpy(from + length, hash, n);
+                length += n;
+            }
+            xorarray(msg, maxlength, from, maxlength);
             if (i == choice) {
-                PyObject *str = PyString_FromStringAndSize(out, maxlength);
+                PyObject *str = PyString_FromStringAndSize(msg, maxlength);
                 if (str == NULL) {
                     err = 1;
                     goto cleanup;
@@ -302,6 +339,10 @@ np_receive(PyObject *self, PyObject *args)
             mpz_clear(Cs[i]);
         free(Cs);
     }
+    if (msg)
+        free(msg);
+    if (from)
+        free(from);
 
     // TODO: clean up py_return if error
 

@@ -12,7 +12,14 @@ extern void __assert_fail (const char *__assertion, const char *__file,
 #define assert(expr)                                                    \
     ((expr)                                                             \
      ? __ASSERT_VOID_CAST (0)                                           \
-     : (void) fprintf(stderr, "Assertion failed. %s. %s:%d. %s\n", __STRING(expr), __FILE__, __LINE__, __PRETTY_FUNCTION__))
+     : (void) fprintf(stderr, "Assertion failed. %s. %s:%d. %s\n",      \
+                      __STRING(expr), __FILE__, __LINE__,               \
+                      __PRETTY_FUNCTION__))
+
+#define MIN(a, b)                               \
+    (a) < (b) ? (a) : (b)
+#define MAX(a, b)                               \
+    (a) > (b) ? (a) : (b)
 
 void *
 pymalloc(size_t size);
