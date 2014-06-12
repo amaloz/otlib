@@ -23,8 +23,7 @@ void
 random_element(mpz_t out, struct params *p)
 {
     mpz_urandomb(out, p->rnd, FIELD_SIZE * 8);
-    mpz_mod(out, out, p->q);
-    // mpz_powm(out, p->g, out, p->p);
+    mpz_mod(out, out, p->p);
 }
 
 static int
