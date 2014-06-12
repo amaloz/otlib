@@ -6,6 +6,8 @@ import numpy as np
 import npot
 import _otlib as _ot
 
+# TODO: push a lot of this to C for efficiency
+
 def binstr2bytes(s):
     return ''.join([chr(int(s[8*i:8*i+8], 2)) for i in xrange(len(s) / 8)])
 
@@ -28,18 +30,17 @@ def transpose(m, length):
     m = np.array([bytes2bintuple(col, length) for col in m]).transpose()
     return [binstr2bytes(''.join([str(e) for e in row])) for row in m]
 
-SECPARAM = 80
-
 class OTExtSender(object):
     def __init__(self, state):
         self._state = state
 
-    def send(self, msgs, maxlength):
-        assert len(msgs) % 8 == 0, "length of 'msgs' must be divisible by 8"
+    def send(self, msgs, maxlength, secparam=80):
+        m = len(msgs)
+        assert m % 8 == 0, "length of 'msgs' must be divisible by 8"
         ot = npot.NPOTReceiver(self._state)
-        s = [random.randint(0, 1) for _ in xrange(SECPARAM)]
-        Q = ot.receive(s, len(msgs) / 8)
-        Q = transpose(Q, len(msgs))
+        s = [random.randint(0, 1) for _ in xrange(secparam)]
+        Q = ot.receive(s, m / 8)
+        Q = transpose(Q, m)
         s = binstr2bytes(''.join([str(e) for e in s]))
         _ot.otext_send(self._state, msgs, maxlength, s, Q)
 
@@ -47,12 +48,12 @@ class OTExtReceiver(object):
     def __init__(self, state):
         self._state = state
 
-    def receive(self, choices, maxlength):
-        ot = npot.NPOTSender(self._state)
+    def receive(self, choices, maxlength, secparam=80):
         m = len(choices)
         assert m % 8 == 0, "length of 'choices' must be divisible by 8"
+        ot = npot.NPOTSender(self._state)
         r = binstr2bytes(''.join([str(c) for c in choices]))
-        T = [np.random.bytes(m / 8) for _ in xrange(SECPARAM)]
+        T = [np.random.bytes(m / 8) for _ in xrange(secparam)]
         inputs = [(t, xor(r, t)) for t in T]
         ot.send(inputs, m / 8)
         T = transpose(T, m)

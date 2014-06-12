@@ -16,6 +16,7 @@ otext_send(PyObject *self, PyObject *args)
     long m, err = 0;
     char *s, *msg = NULL;
     int slen;
+    /* max length of messages in bytes */
     unsigned int maxlength;
 
     if (!PyArg_ParseTuple(args, "OOIs#O", &py_state, &py_msgs, &maxlength,
@@ -169,7 +170,7 @@ otext_receive(PyObject *self, PyObject *args)
 
             if (i == choice) {
                 xorarray(from, maxlength, msg, maxlength);
-                PyObject *str = PyString_FromString(from);
+                PyObject *str = PyString_FromStringAndSize(from, maxlength);
                 if (str == NULL) {
                     err = 1;
                     goto cleanup;
