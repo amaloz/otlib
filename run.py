@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse, random
 
-NITERS = 80
+NITERS = 1280
 N = 2
 MAXLENGTH = 10
 
@@ -22,12 +22,12 @@ def sender(args):
     if args.test_otext:
         start = time.time()
         ot = otext.OTExtSender(state)
-        ot.send(msgs, MAXLENGTH)
+        ot.send(msgs, MAXLENGTH, npot)
         end = time.time()
         print('Sender time (%d iterations): %f' % (NITERS, end - start))
     if args.test_npot:
         start = time.time()
-        ot = npot.NPOTSender(state)
+        ot = npot.OTSender(state)
         ot.send(msgs, MAXLENGTH)
         end = time.time()
         print('Sender time (%d iterations): %f' % (NITERS, end - start))
@@ -41,13 +41,13 @@ def receiver(args):
     if args.test_otext:
         start = time.time()
         ot = otext.OTExtReceiver(state)
-        r = ot.receive(choices, MAXLENGTH)
+        r = ot.receive(choices, MAXLENGTH, npot)
         end = time.time()
         print(r)
         print('Receiver time (%d iterations): %f' % (NITERS, end - start))
     if args.test_npot:
         start = time.time()
-        ot = npot.NPOTReceiver(state)
+        ot = npot.OTReceiver(state)
         r = ot.receive(choices, MAXLENGTH)
         end = time.time()
         print(r)

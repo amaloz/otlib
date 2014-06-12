@@ -1,17 +1,11 @@
 import _otlib as _ot
 
-import itertools
+import ot
 
-class NPOTSender(object):
+class OTSender(ot.OTSender):
     def __init__(self, state):
-        self._state = state
+        super(OTSender, self).__init__(state, _ot.np_send)
 
-    def send(self, msgs, maxlength):
-        _ot.np_send(self._state, msgs, maxlength)
-
-class NPOTReceiver(object):
+class OTReceiver(ot.OTReceiver):
     def __init__(self, state):
-        self._state = state
-
-    def receive(self, choices, maxlength, N=2):
-        return _ot.np_receive(self._state, choices, N, maxlength)
+        super(OTReceiver, self).__init__(state, _ot.np_receive)
