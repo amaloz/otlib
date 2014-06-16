@@ -57,17 +57,3 @@ xorarray(char *a, const size_t alen, const char *b, const size_t blen)
     }
 }
 
-void
-mpz_to_array(char *buf, const mpz_t n, const size_t buflen)
-{
-    size_t len = 0;
-    memset(buf, '\0', FIELD_SIZE);
-    (void) mpz_export(buf, &len, -1, sizeof(char), 0, 0, n);
-}
-
-void
-array_to_mpz(mpz_t out, const char *buf, const size_t buflen)
-{
-    mpz_import(out, buflen, -1, sizeof(char), 0, 0, buf);
-}
-

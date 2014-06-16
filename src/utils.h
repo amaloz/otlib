@@ -1,8 +1,6 @@
 #ifndef __OTLIB_UTILS_H__
 #define __OTLIB_UTILS_H__
 
-#include <gmp.h>
-
 #include "assert.h"
 /* python seems to prevent us from using assert.h, so we redefine assert here */
 extern void __assert_fail (const char *__assertion, const char *__file,
@@ -35,11 +33,5 @@ pyrecv(int socket, void *buffer, size_t length, int flags);
 
 void
 xorarray(char *a, const size_t alen, const char *b, const size_t blen);
-
-void
-mpz_to_array(char *buf, const mpz_t n, const size_t buflen);
-
-void
-array_to_mpz(mpz_t out, const char *buf, const size_t buflen);
 
 #endif

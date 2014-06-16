@@ -13,7 +13,7 @@
 #include <gmp.h>
 #include <openssl/sha.h>
 
-const char *tag = "OT-NP";
+static const char *tag = "OT-NP";
 
 static void
 build_hash(char *final, char *buf, int index, const int maxlength)

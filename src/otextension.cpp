@@ -8,13 +8,43 @@
 
 #define SECPARAM 80
 
+static char *
+to_array(PyObject *columns, int nrows, int ncols)
+{
+    char *array;
+
+    array = (char *) pymalloc(sizeof(char) * nrows * ncols);
+    if (array == NULL)
+        return NULL;
+
+    for (int i = 0; i < ncols; ++i) {
+        char *col;
+        Py_ssize_t collen;
+
+        (void) PyBytes_AsStringAndSize(PySequence_GetItem(columns, i),
+                                       &col, &collen);
+        assert(collen == nrows);
+        memcpy(array + i * collen, col, collen);
+        fprintf(stderr, "%x\n", col);
+    }
+
+    return array;
+}
+
+static char *
+transpose(char *array, int nrows, int ncols)
+{
+    assert(0);
+    return NULL;
+}
+
 PyObject *
 otext_send(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_msgs, *py_qt;
     struct state *st;
     long m, err = 0;
-    char *s, *msg = NULL;
+    char *s, *array = NULL, *msg = NULL;
     int slen;
     /* max length of messages in bytes */
     unsigned int maxlength;
@@ -27,14 +57,17 @@ otext_send(PyObject *self, PyObject *args)
     if (st == NULL)
         return NULL;
 
+    if ((m = PySequence_Length(py_msgs)) == -1)
+        return NULL;
+
     msg = (char *) pymalloc(sizeof(char) * maxlength);
     if (msg == NULL) {
         err = 1;
         goto cleanup;
     }
 
-    if ((m = PySequence_Length(py_msgs)) == -1)
-        return NULL;
+    /* TODO: transpose Q */
+    array = to_array(py_qt, m, 80 /* FIXME: don't hardcode */);
 
     for (int j = 0; j < m; ++j) {
         PyObject *py_input;
@@ -89,6 +122,8 @@ otext_send(PyObject *self, PyObject *args)
  cleanup:
     if (msg)
         free(msg);
+    if (array)
+        free(array);
 
     if (err)
         return NULL;

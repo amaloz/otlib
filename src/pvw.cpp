@@ -1,6 +1,7 @@
 #include "pvw.h"
+#include "gmputils.h"
 
-const char *tag = "OT-PVW";
+static const char *tag = "OT-PVW";
 
 struct ddh_pk {
     mpz_t g;
@@ -64,7 +65,7 @@ static void
 ddh_keygen(struct ddh_pk *pk, struct ddh_sk *sk, struct params *p)
 {
     mpz_set(pk->g, p->g);
-    // TODO: choose generator h
+    find_generator(pk->h, p);
     random_element(sk->x, p);
     mpz_powm(pk->gx, pk->g, sk->x, p->p);
     mpz_powm(pk->hx, pk->h, sk->x, p->p);
@@ -116,6 +117,7 @@ pvw_send(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_msgs;
     unsigned int maxlength;
+    struct state *st;
 
     if (!PyArg_ParseTuple(args, "OOI", &py_state, &py_msgs, &maxlength))
         return NULL;

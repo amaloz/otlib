@@ -19,13 +19,6 @@ static const char *ifcq1024 = "F518AA8781A8DF278ABA4E7D64B7CB9D49462353";
 
 #define RANDFILE "/dev/urandom"
 
-void
-random_element(mpz_t out, struct params *p)
-{
-    mpz_urandomb(out, p->rnd, FIELD_SIZE * 8);
-    mpz_mod(out, out, p->p);
-}
-
 static int
 state_initialize(struct state *s, long length)
 {
