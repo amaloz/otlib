@@ -1,7 +1,7 @@
 #include "pvw.h"
 #include "gmputils.h"
 
-static const char *tag = "OT-PVW";
+// static const char *tag = "OT-PVW";
 
 struct ddh_pk {
     mpz_t g;
@@ -72,15 +72,33 @@ ddh_keygen(struct ddh_pk *pk, struct ddh_sk *sk, struct params *p)
 }
 
 static void
-ddh_enc(struct ddh_pk *pk, char *m, struct ddh_ctxt *c)
+ddh_enc(struct ddh_ctxt *c, const struct ddh_pk *pk, const char *msg, 
+        struct params *p)
 {
-    assert(0);
+    mpz_t m;
+
+    mpz_init(m);
+
+    encode(m, msg);
+    randomize(c->u, c->v, pk->g, pk->h, pk->gx, pk->hx, p);
+    mpz_mul(c->v, c->v, m);
+    mpz_mod(c->v, c->v, p->p);
+
+    mpz_clear(m);
 }
 
 static void
-ddh_dec(struct ddh_sk *sk, struct ddh_ctxt *c, char *m)
+ddh_dec(char *m, const struct ddh_sk *sk, const struct ddh_ctxt *c,
+        const struct params *p)
 {
-    assert(0);
+    mpz_t tmp;
+
+    mpz_init(tmp);
+
+    mpz_powm(tmp, c->u, sk->x, p->p);
+    mpz_cdiv_q(tmp, c->v, tmp);
+    decode(m, tmp);
+    mpz_clear(tmp);
 }
 
 static void

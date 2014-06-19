@@ -47,7 +47,7 @@ pyrecv(int socket, void *buffer, size_t length, int flags)
 }
 
 void
-xorarray(char *a, const size_t alen, const char *b, const size_t blen)
+xorarray(byte *a, const size_t alen, const byte *b, const size_t blen)
 {
     size_t i;
 

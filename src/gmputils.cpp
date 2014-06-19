@@ -1,4 +1,5 @@
 #include "gmputils.h"
+#include "utils.h"
 
 #include <string.h>
 
@@ -38,4 +39,16 @@ find_generator(mpz_t g, struct params *params)
     } while (mpz_cmp(tmp, pminusone) != 0);
 
     mpz_clears(exp, pminusone, tmp, NULL);
+}
+
+void
+encode(mpz_t elem, const char *str)
+{
+    assert(0);
+}
+
+void
+decode(char *str, const mpz_t elem)
+{
+    assert(0);
 }

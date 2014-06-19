@@ -6,16 +6,35 @@
 #include <gmp.h>
 #include <openssl/sha.h>
 
-#define SECPARAM 80
+static const byte MASK_BIT[8] =
+    {0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1};
+static const byte CMASK_BIT[8] =
+    {0x7f, 0xbf, 0xdf, 0xef, 0xf7, 0xfb, 0xfd, 0xfe};
+static const byte MASK_SET_BIT_C[2][8] =
+    {{0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1},
+     {   0,    0,    0,    0,   0,   0,   0,   0}};
 
-static char *
+static inline byte
+get_bit(const byte *array, int idx)
+{
+    return !!(array[idx >> 3] & MASK_BIT[idx & 0x7]);
+}
+
+static inline void
+set_bit(byte *array, int idx, byte bit)
+{
+    array[idx >> 3] = (array[idx >> 3] & CMASK_BIT[idx & 0x7]) | MASK_SET_BIT_C[!bit][idx & 0x7];
+}
+
+static byte *
 to_array(PyObject *columns, int nrows, int ncols)
 {
-    char *array;
+    byte *array;
 
-    array = (char *) pymalloc(sizeof(char) * nrows * ncols);
+    array = (byte *) pymalloc(sizeof(byte) * nrows * ncols / 8);
     if (array == NULL)
         return NULL;
+    memset(array, '\0', nrows * ncols / 8);
 
     for (int i = 0; i < ncols; ++i) {
         char *col;
@@ -23,19 +42,31 @@ to_array(PyObject *columns, int nrows, int ncols)
 
         (void) PyBytes_AsStringAndSize(PySequence_GetItem(columns, i),
                                        &col, &collen);
-        assert(collen == nrows);
+        assert(collen * 8 == nrows);
         memcpy(array + i * collen, col, collen);
-        fprintf(stderr, "%x\n", col);
     }
 
     return array;
 }
 
-static char *
-transpose(char *array, int nrows, int ncols)
+static byte *
+transpose(byte *array, int nrows, int ncols)
 {
-    assert(0);
-    return NULL;
+    byte *tarray;
+
+    tarray = (byte *) pymalloc(sizeof(byte) * nrows * ncols / 8);
+    if (tarray == NULL)
+        return NULL;
+    memset(tarray, '\0', nrows * ncols / 8);
+
+    for (int i = 0; i < ncols; ++i) {
+        for (int j = 0; j < nrows; ++j) {
+            byte bit = get_bit(array, i * nrows + j);
+            set_bit(tarray, j * ncols + i, bit);
+        }
+    }
+
+    return tarray;
 }
 
 PyObject *
@@ -44,13 +75,13 @@ otext_send(PyObject *self, PyObject *args)
     PyObject *py_state, *py_msgs, *py_qt;
     struct state *st;
     long m, err = 0;
-    char *s, *array = NULL, *msg = NULL;
+    char *s, *msg = NULL;
+    byte *array = NULL, *tarray = NULL;
     int slen;
-    /* max length of messages in bytes */
-    unsigned int maxlength;
+    unsigned int msglength, secparam;
 
-    if (!PyArg_ParseTuple(args, "OOIs#O", &py_state, &py_msgs, &maxlength,
-                          &s, &slen, &py_qt))
+    if (!PyArg_ParseTuple(args, "OOOs#II", &py_state, &py_msgs,
+                          &py_qt, &s, &slen, &msglength, &secparam))
         return NULL;
 
     st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
@@ -60,36 +91,43 @@ otext_send(PyObject *self, PyObject *args)
     if ((m = PySequence_Length(py_msgs)) == -1)
         return NULL;
 
-    msg = (char *) pymalloc(sizeof(char) * maxlength);
+    msg = (char *) pymalloc(sizeof(char) * msglength);
     if (msg == NULL) {
         err = 1;
         goto cleanup;
     }
 
-    /* TODO: transpose Q */
-    array = to_array(py_qt, m, 80 /* FIXME: don't hardcode */);
+    array = to_array(py_qt, m, secparam);
+    if (array == NULL) {
+        err = 1;
+        goto cleanup;
+    }
+    tarray = transpose(array, m, secparam);
+    if (tarray == NULL) {
+        err = 1;
+        goto cleanup;
+    }
 
     for (int j = 0; j < m; ++j) {
         PyObject *py_input;
 
         py_input = PySequence_GetItem(py_msgs, j);
         for (int i = 0; i < 2; ++i) {
-            char *m, *q;
-            Py_ssize_t mlen, qlen;
+            char *m;
+            byte *q;
+            Py_ssize_t mlen;
             char hash[SHA_DIGEST_LENGTH];
             unsigned int length = 0;
 
-            (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_qt, j),
-                                           &q, &qlen);
-            assert(qlen <= (int) sizeof hash);
+            q = &tarray[j * (secparam / 8)];
             assert(slen <= (int) sizeof hash);
             (void) memset(hash, '\0', sizeof hash);
-            xorarray(hash, sizeof hash, q, qlen);
+            xorarray((byte *) hash, sizeof hash, q, secparam / 8);
             if (i == 1) {
-                xorarray(hash, sizeof hash, s, slen);
+                xorarray((byte *) hash, sizeof hash, (byte *) s, slen);
             }
 
-            while (length < maxlength) {
+            while (length < msglength) {
                 SHA_CTX c;
                 int n;
 
@@ -102,16 +140,16 @@ otext_send(PyObject *self, PyObject *args)
                     (void) SHA1_Update(&c, msg + length - sizeof hash, sizeof hash);
                     (void) SHA1_Final((unsigned char *) hash, &c);
                 }
-                n = MIN(maxlength - length, (int) sizeof hash);
+                n = MIN(msglength - length, (int) sizeof hash);
                 (void) memcpy(msg + length, hash, n);
                 length += n;
             }
 
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
-            assert(mlen <= maxlength);
-            xorarray(msg, maxlength, m, mlen);
-            if (pysend(st->sockfd, msg, maxlength, 0) == -1) {
+            assert(mlen <= msglength);
+            xorarray((byte *) msg, msglength, (byte *) m, mlen);
+            if (pysend(st->sockfd, msg, msglength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
@@ -124,6 +162,8 @@ otext_send(PyObject *self, PyObject *args)
         free(msg);
     if (array)
         free(array);
+    if (tarray)
+        free(tarray);
 
     if (err)
         return NULL;
@@ -137,11 +177,12 @@ otext_receive(PyObject *self, PyObject *args)
     PyObject *py_state, *py_T, *py_choices, *py_return = NULL;
     struct state *st;
     char *from = NULL, *msg = NULL;
+    byte *array = NULL, *tarray = NULL;
     int m, err = 0;
-    unsigned int maxlength;
+    unsigned int maxlength, secparam;
 
-    if (!PyArg_ParseTuple(args, "OOIO", &py_state, &py_choices, &maxlength,
-                          &py_T))
+    if (!PyArg_ParseTuple(args, "OOOII", &py_state, &py_choices, &py_T, &maxlength,
+                          &secparam))
         return NULL;
 
     st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
@@ -162,6 +203,17 @@ otext_receive(PyObject *self, PyObject *args)
     if ((m = PySequence_Length(py_choices)) == -1)
         return NULL;
 
+    array = to_array(py_T, m, secparam);
+    if (array == NULL) {
+        err = 1;
+        goto cleanup;
+    }
+    tarray = transpose(array, m, secparam);
+    if (tarray == NULL) {
+        err = 1;
+        goto cleanup;
+    }
+
     py_return = PyTuple_New(m);
 
     for (int j = 0; j < m; ++j) {
@@ -171,8 +223,7 @@ otext_receive(PyObject *self, PyObject *args)
 
         for (int i = 0; i < 2; ++i) {
             char hash[SHA_DIGEST_LENGTH];
-            char *t;
-            Py_ssize_t tlen;
+            byte *t;
             unsigned int length = 0;
 
             if (pyrecv(st->sockfd, from, maxlength, 0) == -1) {
@@ -187,11 +238,9 @@ otext_receive(PyObject *self, PyObject *args)
                 (void) SHA1_Init(&c);
                 if (length == 0) {
                     (void) SHA1_Update(&c, &j, sizeof j);
-                    (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_T, j),
-                                                   &t, &tlen);
-                    assert(tlen <= (int) sizeof hash);
+                    t = &tarray[j * (secparam / 8)];
                     (void) memset(hash, '\0', sizeof hash);
-                    (void) memcpy(hash, t, tlen);
+                    (void) memcpy(hash, t, secparam / 8);
                     (void) SHA1_Update(&c, hash, sizeof hash);
                     (void) SHA1_Final((unsigned char *) hash, &c);
                 } else {
@@ -204,7 +253,7 @@ otext_receive(PyObject *self, PyObject *args)
             }
 
             if (i == choice) {
-                xorarray(from, maxlength, msg, maxlength);
+                xorarray((byte *) from, maxlength, (byte *) msg, maxlength);
                 PyObject *str = PyString_FromStringAndSize(from, maxlength);
                 if (str == NULL) {
                     err = 1;
@@ -221,6 +270,10 @@ otext_receive(PyObject *self, PyObject *args)
         free(from);
     if (msg)
         free(msg);
+    if (array)
+        free(array);
+    if (tarray)
+        free(tarray);
 
     if (err)
         return NULL;

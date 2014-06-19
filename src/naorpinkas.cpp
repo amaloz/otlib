@@ -13,7 +13,7 @@
 #include <gmp.h>
 #include <openssl/sha.h>
 
-static const char *tag = "OT-NP";
+// static const char *tag = "OT-NP";
 
 static void
 build_hash(char *final, char *buf, int index, const int maxlength)
@@ -169,7 +169,7 @@ np_send(PyObject *self, PyObject *args)
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= maxlength);
-            xorarray(msg, maxlength, m, mlen);
+            xorarray((byte *) msg, maxlength, (byte *) m, mlen);
             if (pysend(s->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
@@ -312,7 +312,7 @@ np_receive(PyObject *self, PyObject *args)
             }
             mpz_to_array(buf, ks[j], sizeof buf);
             build_hash(from, buf, i, maxlength);
-            xorarray(msg, maxlength, from, maxlength);
+            xorarray((byte *) msg, maxlength, (byte *) from, maxlength);
             if (i == choice) {
                 PyObject *str = PyString_FromStringAndSize(msg, maxlength);
                 if (str == NULL) {

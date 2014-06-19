@@ -1,6 +1,8 @@
 #ifndef __OTLIB_UTILS_H__
 #define __OTLIB_UTILS_H__
 
+#include <stdlib.h>
+
 #include "assert.h"
 /* python seems to prevent us from using assert.h, so we redefine assert here */
 extern void __assert_fail (const char *__assertion, const char *__file,
@@ -19,6 +21,8 @@ extern void __assert_fail (const char *__assertion, const char *__file,
 #define MAX(a, b)                               \
     (a) > (b) ? (a) : (b)
 
+typedef unsigned char byte;
+
 double
 current_time(void);
 
@@ -32,6 +36,6 @@ int
 pyrecv(int socket, void *buffer, size_t length, int flags);
 
 void
-xorarray(char *a, const size_t alen, const char *b, const size_t blen);
+xorarray(byte *a, const size_t alen, const byte *b, const size_t blen);
 
 #endif

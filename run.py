@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse, random
 
-NITERS = 1280
+NITERS = 80
 N = 2
 MAXLENGTH = 10
 

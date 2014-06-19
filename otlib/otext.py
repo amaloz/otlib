@@ -40,12 +40,8 @@ class OTExtSender(object):
         ot = otmodule.OTReceiver(self._state)
         s = [random.randint(0, 1) for _ in xrange(secparam)]
         Q = ot.receive(s, m / 8)
-        start = time.time()
-        Q = transpose(Q, m)
-        end = time.time()
-        print("Time spent transposing: %f" % (end - start))
         s = binstr2bytes(''.join([str(e) for e in s]))
-        _ot.otext_send(self._state, msgs, maxlength, s, Q)
+        _ot.otext_send(self._state, msgs, Q, s, maxlength, secparam)
 
 class OTExtReceiver(object):
     def __init__(self, state):
@@ -59,8 +55,4 @@ class OTExtReceiver(object):
         T = [np.random.bytes(m / 8) for _ in xrange(secparam)]
         inputs = [(t, xor(r, t)) for t in T]
         ot.send(inputs, m / 8)
-        start = time.time()
-        T = transpose(T, m)
-        end = time.time()
-        print("Time spent transposing: %f" % (end - start))
-        return _ot.otext_receive(self._state, choices, maxlength, T)
+        return _ot.otext_receive(self._state, choices, T, maxlength, secparam)
