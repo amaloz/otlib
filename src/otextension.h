@@ -7,6 +7,9 @@ PyObject *
 otext_send(PyObject *self, PyObject *args);
 
 PyObject *
+otext_matrix_xor(PyObject *self, PyObject *args);
+
+PyObject *
 otext_receive(PyObject *self, PyObject *args);
 
 #endif

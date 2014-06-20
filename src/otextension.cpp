@@ -30,7 +30,9 @@ static byte *
 to_array(PyObject *columns, int nrows, int ncols)
 {
     byte *array;
+    double start, end;
 
+    start = current_time();
     array = (byte *) pymalloc(sizeof(byte) * nrows * ncols / 8);
     if (array == NULL)
         return NULL;
@@ -45,6 +47,8 @@ to_array(PyObject *columns, int nrows, int ncols)
         assert(collen * 8 == nrows);
         memcpy(array + i * collen, col, collen);
     }
+    end = current_time();
+    fprintf(stderr, "to_array: %f\n", end - start);
 
     return array;
 }
@@ -53,7 +57,9 @@ static byte *
 transpose(byte *array, int nrows, int ncols)
 {
     byte *tarray;
+    double start, end;
 
+    start = current_time();
     tarray = (byte *) pymalloc(sizeof(byte) * nrows * ncols / 8);
     if (tarray == NULL)
         return NULL;
@@ -65,6 +71,8 @@ transpose(byte *array, int nrows, int ncols)
             set_bit(tarray, j * ncols + i, bit);
         }
     }
+    end = current_time();
+    fprintf(stderr, "transpose: %f\n", end - start);
 
     return tarray;
 }
@@ -79,6 +87,7 @@ otext_send(PyObject *self, PyObject *args)
     byte *array = NULL, *tarray = NULL;
     int slen;
     unsigned int msglength, secparam;
+    double start, end;
 
     if (!PyArg_ParseTuple(args, "OOOs#II", &py_state, &py_msgs,
                           &py_qt, &s, &slen, &msglength, &secparam))
@@ -108,6 +117,7 @@ otext_send(PyObject *self, PyObject *args)
         goto cleanup;
     }
 
+    start = current_time();
     for (int j = 0; j < m; ++j) {
         PyObject *py_input;
 
@@ -153,9 +163,10 @@ otext_send(PyObject *self, PyObject *args)
                 err = 1;
                 goto cleanup;
             }
-
         }
     }
+    end = current_time();
+    fprintf(stderr, "hash and send: %f\n", end - start);
 
  cleanup:
     if (msg)
@@ -172,6 +183,55 @@ otext_send(PyObject *self, PyObject *args)
 }
 
 PyObject *
+otext_matrix_xor(PyObject *self, PyObject *args)
+{
+    PyObject *py_state, *py_T, *py_return = NULL, *py_t_xor_r;
+    struct state *st;
+    char *r, *t_xor_r;
+    Py_ssize_t rlen;
+    unsigned int m, secparam;
+
+    if (!PyArg_ParseTuple(args, "OOs#II", &py_state, &py_T, &r, &rlen,
+                          &m, &secparam))
+        return NULL;
+
+    st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
+    if (st == NULL)
+        return NULL;
+
+    assert(m % 8 == 0);
+    m = m / 8;
+
+    assert((int) rlen == (int) m);
+
+    t_xor_r = (char *) pymalloc(sizeof(char) * m);
+    if (t_xor_r == NULL)
+        return NULL;
+
+    py_return = PyTuple_New(secparam);
+
+    for (unsigned int i = 0; i < secparam; ++i) {
+        PyObject *tuple;
+        char *t;
+        Py_ssize_t tlen;
+
+        (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_T, i), &t, &tlen);
+        assert(tlen == m);
+        memcpy(t_xor_r, t, m);
+        xorarray((byte *) t_xor_r, m, (byte *) r, m);
+        py_t_xor_r = PyString_FromStringAndSize(t_xor_r, m);
+
+        tuple = PyTuple_New(2);
+        PyTuple_SetItem(tuple, 0, PySequence_GetItem(py_T, i));
+        PyTuple_SetItem(tuple, 1, py_t_xor_r);
+
+        PyTuple_SetItem(py_return, i, tuple);
+    }
+
+    return py_return;
+}
+
+PyObject *
 otext_receive(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_T, *py_choices, *py_return = NULL;
@@ -180,6 +240,7 @@ otext_receive(PyObject *self, PyObject *args)
     byte *array = NULL, *tarray = NULL;
     int m, err = 0;
     unsigned int maxlength, secparam;
+    double start, end;
 
     if (!PyArg_ParseTuple(args, "OOOII", &py_state, &py_choices, &py_T, &maxlength,
                           &secparam))
@@ -216,6 +277,7 @@ otext_receive(PyObject *self, PyObject *args)
 
     py_return = PyTuple_New(m);
 
+    start = current_time();
     for (int j = 0; j < m; ++j) {
         int choice;
 
@@ -227,6 +289,7 @@ otext_receive(PyObject *self, PyObject *args)
             unsigned int length = 0;
 
             if (pyrecv(st->sockfd, from, maxlength, 0) == -1) {
+                fprintf(stderr, "%d\n", i);
                 err = 1;
                 goto cleanup;
             }
@@ -264,6 +327,8 @@ otext_receive(PyObject *self, PyObject *args)
             }
         }
     }
+    end = current_time();
+    fprintf(stderr, "hash and receive: %f\n", end - start);
 
  cleanup:
     if (from)

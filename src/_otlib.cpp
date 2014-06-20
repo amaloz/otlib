@@ -10,6 +10,7 @@ methods[] = {
     {"np_send", np_send, METH_VARARGS, "sender operation for Naor-Pinkas OT."},
     {"np_receive", np_receive, METH_VARARGS, "receiver operation for Naor-Pinkas OT."},
     {"otext_send", otext_send, METH_VARARGS, "TODO."}, // TODO:
+    {"otext_matrix_xor", otext_matrix_xor, METH_VARARGS, "TODO."}, // TODO:
     {"otext_receive", otext_receive, METH_VARARGS, "TODO."}, // TODO:
     {NULL, NULL, 0, NULL}
 };

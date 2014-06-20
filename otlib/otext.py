@@ -37,9 +37,16 @@ class OTExtSender(object):
     def send(self, msgs, maxlength, otmodule, secparam=80):
         m = len(msgs)
         assert m % 8 == 0, "length of 'msgs' must be divisible by 8"
+        start = time.time()
         ot = otmodule.OTReceiver(self._state)
         s = [random.randint(0, 1) for _ in xrange(secparam)]
+        end = time.time()
+        print('Initialize: %f' % (end - start))
+
+        start = time.time()
         Q = ot.receive(s, m / 8)
+        end = time.time()
+        print('OT receive: %f' % (end - start))
         s = binstr2bytes(''.join([str(e) for e in s]))
         _ot.otext_send(self._state, msgs, Q, s, maxlength, secparam)
 
@@ -50,9 +57,33 @@ class OTExtReceiver(object):
     def receive(self, choices, maxlength, otmodule, secparam=80):
         m = len(choices)
         assert m % 8 == 0, "length of 'choices' must be divisible by 8"
+
+        start = time.time()
         ot = otmodule.OTSender(self._state)
+        end = time.time()
+        print('Initialize OTSender: %f' % (end - start))
+
+        start = time.time()
         r = binstr2bytes(''.join([str(c) for c in choices]))
+        end = time.time()
+        print('binstr2bytes: %f' % (end - start))
+
+        start = time.time()
         T = [np.random.bytes(m / 8) for _ in xrange(secparam)]
-        inputs = [(t, xor(r, t)) for t in T]
+        end = time.time()
+        print('build T: %f' % (end - start))
+
+        start = time.time()
+        inputs = _ot.otext_matrix_xor(self._state, T, r, m, secparam);
+        end = time.time()
+        print('xor: %f' % (end - start))
+
+        start = time.time()
         ot.send(inputs, m / 8)
-        return _ot.otext_receive(self._state, choices, T, maxlength, secparam)
+        end = time.time()
+        print('OT send: %f' % (end - start))
+
+        start = time.time()
+        r = _ot.otext_receive(self._state, choices, T, maxlength, secparam)
+        end = time.time()
+        print('OText receive: %f' % (end - start))
