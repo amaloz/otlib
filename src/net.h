@@ -14,4 +14,10 @@ init_server(const char *addr, const char *port);
 int
 init_client(const char *addr, const char *port);
 
+int
+pysend(int socket, const void *buffer, size_t length, int flags);
+
+int
+pyrecv(int socket, void *buffer, size_t length, int flags);
+
 #endif

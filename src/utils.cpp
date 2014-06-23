@@ -24,28 +24,6 @@ pymalloc(size_t size)
     return r;
 }
 
-int
-pysend(int socket, const void *buffer, size_t length, int flags)
-{
-    if (send(socket, buffer, length, flags) == -1) {
-        perror("send");
-        PyErr_SetString(PyExc_RuntimeError, "send failed");
-        return -1;
-    }
-    return 0;
-}
-
-int
-pyrecv(int socket, void *buffer, size_t length, int flags)
-{
-    if (recv(socket, buffer, length, flags) == -1) {
-        perror("recv");
-        PyErr_SetString(PyExc_RuntimeError, "recv failed");
-        return -1;
-    }
-    return 0;
-}
-
 void
 xorarray(byte *a, const size_t alen, const byte *b, const size_t blen)
 {
