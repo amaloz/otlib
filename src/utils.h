@@ -3,6 +3,9 @@
 
 #include <stdlib.h>
 
+#define SUCCESS 0
+#define FAILURE -1
+
 #include "assert.h"
 /* python seems to prevent us from using assert.h, so we redefine assert here */
 extern void __assert_fail (const char *__assertion, const char *__file,

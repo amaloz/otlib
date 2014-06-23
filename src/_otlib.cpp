@@ -2,6 +2,7 @@
 
 #include "naorpinkas.h"
 #include "otextension.h"
+#include "pvw.h"
 #include "state.h"
 
 static PyMethodDef
@@ -12,6 +13,8 @@ methods[] = {
     {"otext_send", otext_send, METH_VARARGS, "TODO."}, // TODO:
     {"otext_matrix_xor", otext_matrix_xor, METH_VARARGS, "TODO."}, // TODO:
     {"otext_receive", otext_receive, METH_VARARGS, "TODO."}, // TODO:
+    {"pvw_send", pvw_send, METH_VARARGS, "sender operation for PVW OT."},
+    {"pvw_receive", pvw_receive, METH_VARARGS, "receiver operation for PVW OT."},
     {NULL, NULL, 0, NULL}
 };
 

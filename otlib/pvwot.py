@@ -1,8 +1,10 @@
 import _otlib as _ot
+import ot
 
-class PVWOTSender(object):
+class OTSender(ot.OTSender):
     def __init__(self, state):
-        self._state = state
+        super(OTSender, self).__init__(state, _ot.pvw_send)
 
-    def send(self, msgs, maxlength):
-        pass
+class OTReceiver(ot.OTReceiver):
+    def __init__(self, state):
+        super(OTReceiver, self).__init__(state, _ot.pvw_receive)

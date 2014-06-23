@@ -6,29 +6,27 @@ import numpy as np
 import npot
 import _otlib as _ot
 
-# TODO: push a lot of this to C for efficiency
-
 def binstr2bytes(s):
     return ''.join([chr(int(s[8*i:8*i+8], 2)) for i in xrange(len(s) / 8)])
 
-def bytes2bintuple(s, length):
-    bstr = []
-    for b in s:
-        b = bin(ord(b))[2:]
-        b = ('0' * (8 - len(b))) + b
-        bstr.append(b)
-    bstr = ''.join(bstr)
-    bstr = ('0' * (length - len(bstr))) + bstr
-    assert len(bstr) == length
-    return [int(b) for b in bstr]
+# def bytes2bintuple(s, length):
+#     bstr = []
+#     for b in s:
+#         b = bin(ord(b))[2:]
+#         b = ('0' * (8 - len(b))) + b
+#         bstr.append(b)
+#     bstr = ''.join(bstr)
+#     bstr = ('0' * (length - len(bstr))) + bstr
+#     assert len(bstr) == length
+#     return [int(b) for b in bstr]
 
-def xor(a, b):
-    assert len(a) == len(b)
-    return ''.join([chr(ord(a[i]) ^ ord(b[i])) for i in xrange(len(a))])
+# def xor(a, b):
+#     assert len(a) == len(b)
+#     return ''.join([chr(ord(a[i]) ^ ord(b[i])) for i in xrange(len(a))])
 
-def transpose(m, length):
-    m = np.array([bytes2bintuple(col, length) for col in m]).transpose()
-    return [binstr2bytes(''.join([str(e) for e in row])) for row in m]
+# def transpose(m, length):
+#     m = np.array([bytes2bintuple(col, length) for col in m]).transpose()
+#     return [binstr2bytes(''.join([str(e) for e in row])) for row in m]
 
 class OTExtSender(object):
     def __init__(self, state):

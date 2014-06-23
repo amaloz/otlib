@@ -6,4 +6,7 @@
 PyObject *
 pvw_send(PyObject *self, PyObject *args);
 
+PyObject *
+pvw_receive(PyObject *self, PyObject *args);
+
 #endif

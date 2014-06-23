@@ -1,5 +1,4 @@
 import _otlib as _ot
-
 import ot
 
 class OTSender(ot.OTSender):
