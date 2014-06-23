@@ -9,8 +9,9 @@ __author__ = 'Alex J. Malozemoff'
 extra_sources = [
     'naorpinkas.cpp',
     'otextension.cpp',
-    'pvw.cpp',
+    # 'pvw.cpp',
     # utils
+    'crypto.cpp',
     'gmputils.cpp',
     'log.cpp',
     'net.cpp',

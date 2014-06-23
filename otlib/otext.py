@@ -87,3 +87,5 @@ class OTExtReceiver(object):
         r = _ot.otext_receive(self._state, choices, T, maxlength, secparam)
         end = time.time()
         print('OText receive: %f' % (end - start))
+
+        return r

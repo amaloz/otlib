@@ -1,5 +1,6 @@
 #include "naorpinkas.h"
 
+#include "crypto.h"
 #include "log.h"
 #include "net.h"
 #include "state.h"
@@ -14,30 +15,6 @@
 #include <openssl/sha.h>
 
 // static const char *tag = "OT-NP";
-
-static void
-build_hash(char *final, char *buf, int index, const int maxlength)
-{
-    int length = 0;
-    while (length < maxlength) {
-        SHA_CTX c;
-        char hash[SHA_DIGEST_LENGTH];
-        int n;
-
-        (void) SHA1_Init(&c);
-        if (length == 0) {
-            (void) SHA1_Update(&c, buf, sizeof buf);
-            (void) SHA1_Update(&c, &index, sizeof index);
-            (void) SHA1_Final((unsigned char *) hash, &c);
-        } else {
-            (void) SHA1_Update(&c, final + length - sizeof hash, sizeof hash);
-            (void) SHA1_Final((unsigned char *) hash, &c);
-        }
-        n = MIN(maxlength - length, (int) sizeof hash);
-        (void) memcpy(final + length, hash, n);
-        length += n;
-    }
-}
 
 PyObject *
 np_send(PyObject *self, PyObject *args)
@@ -165,7 +142,7 @@ np_send(PyObject *self, PyObject *args)
                 mpz_mod(pk, pk, s->p.p);
                 mpz_to_array(buf, pk, sizeof buf);
             }
-            build_hash(msg, buf, i, maxlength);
+            sha1_hash(msg, maxlength, i, (unsigned char *) buf);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= maxlength);
@@ -311,7 +288,7 @@ np_receive(PyObject *self, PyObject *args)
                 goto cleanup;
             }
             mpz_to_array(buf, ks[j], sizeof buf);
-            build_hash(from, buf, i, maxlength);
+            sha1_hash(from, maxlength, i, (unsigned char *) buf);
             xorarray((byte *) msg, maxlength, (byte *) from, maxlength);
             if (i == choice) {
                 PyObject *str = PyString_FromStringAndSize(msg, maxlength);

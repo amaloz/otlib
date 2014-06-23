@@ -42,7 +42,7 @@ def receiver(args):
         ot = otext.OTExtReceiver(state)
         r = ot.receive(choices, MAXLENGTH, npot)
         end = time.time()
-        # print(r)
+        print(r)
         print('Receiver time (%d iterations): %f' % (args.niters, end - start))
     if args.test_npot:
         start = time.time()

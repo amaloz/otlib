@@ -41,11 +41,11 @@ init_server(const char *addr, const char *port)
 
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) == -1) {
+                             p->ai_protocol)) == -1) {
             continue;
         }
         if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-                       sizeof(int)) == -1) {
+                       sizeof yes) == -1) {
             continue;
         }
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {

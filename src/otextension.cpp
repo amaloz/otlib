@@ -1,5 +1,6 @@
 #include "otextension.h"
 
+#include "crypto.h"
 #include "net.h"
 #include "state.h"
 #include "utils.h"
@@ -128,7 +129,6 @@ otext_send(PyObject *self, PyObject *args)
             byte *q;
             Py_ssize_t mlen;
             char hash[SHA_DIGEST_LENGTH];
-            unsigned int length = 0;
 
             q = &tarray[j * (secparam / 8)];
             assert(slen <= (int) sizeof hash);
@@ -137,24 +137,7 @@ otext_send(PyObject *self, PyObject *args)
             if (i == 1) {
                 xorarray((byte *) hash, sizeof hash, (byte *) s, slen);
             }
-
-            while (length < msglength) {
-                SHA_CTX c;
-                int n;
-
-                (void) SHA1_Init(&c);
-                if (length == 0) {
-                    (void) SHA1_Update(&c, &j, sizeof j);
-                    (void) SHA1_Update(&c, hash, sizeof hash);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                } else {
-                    (void) SHA1_Update(&c, msg + length - sizeof hash, sizeof hash);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                }
-                n = MIN(msglength - length, (int) sizeof hash);
-                (void) memcpy(msg + length, hash, n);
-                length += n;
-            }
+            sha1_hash(msg, msglength, j, (unsigned char *) hash);
 
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
@@ -287,44 +270,27 @@ otext_receive(PyObject *self, PyObject *args)
         for (int i = 0; i < 2; ++i) {
             char hash[SHA_DIGEST_LENGTH];
             byte *t;
-            unsigned int length = 0;
+            PyObject *str;
 
             if (pyrecv(st->sockfd, from, maxlength, 0) == -1) {
-                fprintf(stderr, "%d\n", i);
+                fprintf(stderr, "%d\n", j);
                 err = 1;
                 goto cleanup;
             }
 
-            while (length < maxlength) {
-                SHA_CTX c;
-                int n;
+            t = &tarray[j * (secparam / 8)];
+            (void) memset(hash, '\0', sizeof hash);
+            (void) memcpy(hash, t, secparam / 8);
+            sha1_hash(msg, maxlength, j, (unsigned char *) hash);
 
-                (void) SHA1_Init(&c);
-                if (length == 0) {
-                    (void) SHA1_Update(&c, &j, sizeof j);
-                    t = &tarray[j * (secparam / 8)];
-                    (void) memset(hash, '\0', sizeof hash);
-                    (void) memcpy(hash, t, secparam / 8);
-                    (void) SHA1_Update(&c, hash, sizeof hash);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                } else {
-                    (void) SHA1_Update(&c, msg + length - sizeof hash, sizeof hash);
-                    (void) SHA1_Final((unsigned char *) hash, &c);
-                }
-                n = MIN(maxlength - length, (int) sizeof hash);
-                (void) memcpy(msg + length, hash, n);
-                length += n;
+            xorarray((byte *) from, maxlength, (byte *) msg, maxlength);
+            str = PyString_FromStringAndSize(from, maxlength);
+            if (str == NULL) {
+                err = 1;
+                goto cleanup;
             }
-
             if (i == choice) {
-                xorarray((byte *) from, maxlength, (byte *) msg, maxlength);
-                PyObject *str = PyString_FromStringAndSize(from, maxlength);
-                if (str == NULL) {
-                    err = 1;
-                    goto cleanup;
-                } else {
-                    PyTuple_SetItem(py_return, j, str);
-                }
+                PyTuple_SetItem(py_return, j, str);
             }
         }
     }

@@ -6,7 +6,7 @@
 #define BACKLOG 5
 
 void *
-get_in_addr(struct sockaddr *sa);
+get_in_addr(const struct sockaddr *sa);
 
 int
 init_server(const char *addr, const char *port);
