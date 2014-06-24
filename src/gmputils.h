@@ -24,10 +24,10 @@ array_to_mpz(mpz_t out, const char *buf, const size_t buflen);
 void
 find_generator(mpz_t g, struct params *params);
 
-void
-encode(mpz_t elem, const char *str);
+int
+encode(mpz_t elem, const char *str, size_t strlen, const struct params *p);
 
-void
-decode(char *str, const mpz_t elem);
+char *
+decode(const mpz_t elem, const struct params *p);
 
 #endif

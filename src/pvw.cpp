@@ -18,8 +18,8 @@ enum crs_type {
 struct ddh_pk {
     mpz_t g;
     mpz_t h;
-    mpz_t gx;
-    mpz_t hx;
+    mpz_t gp;
+    mpz_t hp;
 };
 
 struct ddh_sk {
@@ -143,12 +143,40 @@ dm_ddh_setup_messy(struct dm_ddh_crs *crs, struct params *p)
 static void
 dm_ddh_setup_dec(struct dm_ddh_crs *crs, struct params *p)
 {
-    assert(0);
+    mpz_t x, y;
+    int file;
+    unsigned long seed;
+
+    mpz_inits(x, y, NULL);
+
+    /* fix seed of random number generator */
+    gmp_randseed_ui(p->rnd, 0UL);
+
+    find_generator(crs->g0, p);
+    random_element(y, p);
+    mpz_powm(crs->g1, crs->g0, y, p->p);
+    mpz_powm(crs->h0, crs->g0, x, p->p);
+    mpz_powm(crs->h1, crs->g1, x, p->p);
+
+    mpz_clears(x, y, NULL);
+
+    /* re-seed random number generator */
+    if ((file = open("/dev/urandom", O_RDONLY)) == -1) {
+        (void) fprintf(stderr, "Error opening /dev/urandom\n");
+    } else {
+        if (read(file, &seed, sizeof seed) == -1) {
+            (void) fprintf(stderr, "Error reading from /dev/urandom\n");
+            (void) close(file);
+        }
+    }
+    gmp_randseed_ui(p->rnd, seed);
+    (void) close(file);
 }
 
 static void
-dm_ddh_setup_crs(struct dm_ddh_crs *crs, enum crs_type mode, struct params *p)
+dm_ddh_crs_setup(struct dm_ddh_crs *crs, enum crs_type mode, struct params *p)
 {
+    mpz_inits(crs->g0, crs->h0, crs->g1, crs->h1, NULL);
     switch (mode) {
     case EXT:
         dm_ddh_setup_messy(crs, p);
@@ -157,6 +185,48 @@ dm_ddh_setup_crs(struct dm_ddh_crs *crs, enum crs_type mode, struct params *p)
         dm_ddh_setup_dec(crs, p);
         break;
     }
+}
+
+static void
+dm_ddh_crs_cleanup(struct dm_ddh_crs *crs)
+{
+    mpz_clears(crs->g0, crs->h0, crs->g1, crs->h1, NULL);
+}
+
+static void
+dm_ddh_pk_setup(struct dm_ddh_pk *pk)
+{
+    mpz_inits(pk->g, pk->h, NULL);
+}
+
+static void
+dm_ddh_pk_cleanup(struct dm_ddh_pk *pk)
+{
+    mpz_clears(pk->g, pk->h, NULL);
+}
+
+static void
+ddh_sk_setup(struct ddh_sk *sk)
+{
+    mpz_init(sk->x);
+}
+
+static void
+ddh_sk_cleanup(struct ddh_sk *sk)
+{
+    mpz_clear(sk->x);
+}
+
+static void
+ddh_ctxt_setup(struct ddh_ctxt *c)
+{
+    mpz_inits(c->u, c->v, NULL);
+}
+
+static void
+ddh_ctxt_cleanup(struct ddh_ctxt *c)
+{
+    mpz_clears(c->u, c->v, NULL);
 }
 
 static void
@@ -185,52 +255,45 @@ randomize(mpz_t u, mpz_t v, const mpz_t g, const mpz_t h, const mpz_t gp,
     mpz_clears(s, t, tmp, NULL);
 }
 
-// static void
-// ddh_keygen(struct ddh_pk *pk, struct ddh_sk *sk, struct params *p)
-// {
-//     mpz_set(pk->g, p->g);
-//     find_generator(pk->h, p);
-//     random_element(sk->x, p);
-//     mpz_powm(pk->gx, pk->g, sk->x, p->p);
-//     mpz_powm(pk->hx, pk->h, sk->x, p->p);
-// }
-
 static void
-ddh_enc(struct ddh_ctxt *c, const struct ddh_pk *pk, const char *msg, 
-        struct params *p)
+ddh_enc(struct ddh_ctxt *c, const struct ddh_pk *pk, const char *msg,
+        size_t msglen, struct params *p)
 {
     mpz_t m;
 
     mpz_init(m);
 
-    encode(m, msg);
-    randomize(c->u, c->v, pk->g, pk->h, pk->gx, pk->hx, p);
+    encode(m, msg, msglen, p);
+    randomize(c->u, c->v, pk->g, pk->h, pk->gp, pk->hp, p);
     mpz_mul(c->v, c->v, m);
     mpz_mod(c->v, c->v, p->p);
 
     mpz_clear(m);
 }
 
-static void
-ddh_dec(char *m, const struct ddh_sk *sk, const struct ddh_ctxt *c,
+static char *
+ddh_dec(const struct ddh_sk *sk, const struct ddh_ctxt *c,
         const struct params *p)
 {
     mpz_t tmp;
+    char *out;
 
     mpz_init(tmp);
 
     mpz_powm(tmp, c->u, sk->x, p->p);
-    mpz_cdiv_q(tmp, c->v, tmp);
-    decode(m, tmp);
+    (void) mpz_invert(tmp, tmp, p->p);
+    mpz_mul(tmp, tmp, c->v);
+    out = decode(tmp, p);
 
     mpz_clear(tmp);
+
+    return out;
 }
 
 static void
 dm_ddh_keygen(struct dm_ddh_pk *pk, struct ddh_sk *sk, int sigma, 
               const struct dm_ddh_crs *crs, struct params *p)
 {
-
     random_element(sk->x, p);
     mpz_powm(pk->g, sigma ? crs->g1 : crs->g0, sk->x, p->p);
     mpz_powm(pk->h, sigma ? crs->h1 : crs->h0, sk->x, p->p);
@@ -238,35 +301,36 @@ dm_ddh_keygen(struct dm_ddh_pk *pk, struct ddh_sk *sk, int sigma,
 
 static void
 dm_ddh_enc(struct ddh_ctxt *ctxt, const struct dm_ddh_crs *crs,
-           struct dm_ddh_pk *pk, int branch, char *msg,
-           struct params *p)
+           struct dm_ddh_pk *pk, int branch, const char *msg,
+           size_t msglen, struct params *p)
 {
     struct ddh_pk ddh_pk;
 
     mpz_init_set(ddh_pk.g, branch ? crs->g1 : crs->g0);
     mpz_init_set(ddh_pk.h, branch ? crs->h1 : crs->h0);
-    mpz_init_set(ddh_pk.gx, pk->g);
-    mpz_init_set(ddh_pk.hx, pk->h);
+    mpz_init_set(ddh_pk.gp, pk->g);
+    mpz_init_set(ddh_pk.hp, pk->h);
 
-    ddh_enc(ctxt, &ddh_pk, msg, p);
+    ddh_enc(ctxt, &ddh_pk, msg, msglen, p);
 }
 
-static void
-dm_ddh_dec(char *m, struct ddh_sk *sk, struct ddh_ctxt *ctxt,
+static char *
+dm_ddh_dec(struct ddh_sk *sk, struct ddh_ctxt *ctxt,
            const struct params *p)
 {
-    ddh_dec(m, sk, ctxt, p);
+    return ddh_dec(sk, ctxt, p);
 }
 
 PyObject *
 pvw_send(PyObject *self, PyObject *args)
 {
-    PyObject *py_state, *py_msgs;
+    PyObject *py_state, *py_msgs, *py_input;
     unsigned int msglength;
     struct dm_ddh_crs crs;
     struct dm_ddh_pk pk;
+    struct ddh_ctxt ctxt;
     struct state *st;
-    char *msg = NULL;
+    double start, end;
 
     if (!PyArg_ParseTuple(args, "OOI", &py_state, &py_msgs, &msglength))
         return NULL;
@@ -275,14 +339,32 @@ pvw_send(PyObject *self, PyObject *args)
     if (st == NULL)
         return NULL;
 
-    dm_ddh_setup_crs(&crs, EXT, &st->p);
-    receive_dm_ddh_pk(&pk, st);
-    for (int b = 0; b < 1; ++b) {
-        struct ddh_ctxt ctxt;
+    py_input = PySequence_GetItem(py_msgs, 0);
 
-        dm_ddh_enc(&ctxt, &crs, &pk, b, msg, &st->p);
+    start = current_time();
+    dm_ddh_crs_setup(&crs, EXT, &st->p);
+    end = current_time();
+    fprintf(stderr, "CRS setup: %f\n", end - start);
+    start = current_time();
+    dm_ddh_pk_setup(&pk);
+    ddh_ctxt_setup(&ctxt);
+    receive_dm_ddh_pk(&pk, st);
+
+    for (int b = 0; b <= 1; ++b) {
+        char *m;
+        Py_ssize_t mlen;
+
+        (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, b), &m, &mlen);
+        assert(mlen <= msglength);
+        dm_ddh_enc(&ctxt, &crs, &pk, b, m, mlen, &st->p);
         send_ddh_ctxt(&ctxt, st);
     }
+    end = current_time();
+    fprintf(stderr, "OT: %f\n", end - start);
+
+    ddh_ctxt_cleanup(&ctxt);
+    dm_ddh_pk_cleanup(&pk);
+    dm_ddh_crs_cleanup(&crs);
 
     Py_RETURN_NONE;
 }
@@ -294,10 +376,11 @@ pvw_receive(PyObject *self, PyObject *args)
     struct dm_ddh_crs crs;
     struct dm_ddh_pk pk;
     struct ddh_sk sk;
+    struct ddh_ctxt ctxt;
     struct state *st;
-    char *msg = NULL;
     int num_ots;
     unsigned int choice, N, msglength, err = 0;
+    double start, end;
 
     if (!PyArg_ParseTuple(args, "OOII", &py_state, &py_choices, &N, &msglength))
         return NULL;
@@ -307,7 +390,7 @@ pvw_receive(PyObject *self, PyObject *args)
         return NULL;
 
     if (N != 2) {
-        // TODO: error message
+        PyErr_SetString(PyExc_RuntimeError, "N must be 2");
         return NULL;
     }
 
@@ -316,16 +399,26 @@ pvw_receive(PyObject *self, PyObject *args)
 
     choice = PyLong_AsLong(PySequence_GetItem(py_choices, 0));
 
-    dm_ddh_setup_crs(&crs, EXT, &st->p);
+    start = current_time();
+    dm_ddh_crs_setup(&crs, EXT, &st->p);
+    end = current_time();
+    fprintf(stderr, "CRS setup: %f\n", end - start);
+
+    dm_ddh_pk_setup(&pk);
+    ddh_sk_setup(&sk);
+    ddh_ctxt_setup(&ctxt);
+
+    start = current_time();
     dm_ddh_keygen(&pk, &sk, choice, &crs, &st->p);
     send_dm_ddh_pk(&pk, st);
-    for (unsigned int b = 0; b < 1; ++b) {
-        struct ddh_ctxt ctxt;
+    for (unsigned int b = 0; b <= 1; ++b) {
+        char *msg;
         PyObject *str;
 
         receive_ddh_ctxt(&ctxt, st);
-        dm_ddh_dec(msg, &sk, &ctxt, &st->p);
+        msg = dm_ddh_dec(&sk, &ctxt, &st->p);
         str = PyString_FromStringAndSize(msg, msglength);
+        free(msg);
         if (str == NULL) {
             err = 1;
             goto cleanup;
@@ -334,8 +427,14 @@ pvw_receive(PyObject *self, PyObject *args)
             output = str;
         }
     }
+    end = current_time();
+    fprintf(stderr, "OT: %f\n", end - start);
 
  cleanup:
+    ddh_ctxt_cleanup(&ctxt);
+    ddh_sk_cleanup(&sk);
+    dm_ddh_pk_cleanup(&pk);
+    dm_ddh_crs_cleanup(&crs);
 
     if (err)
         return NULL;

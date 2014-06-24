@@ -41,14 +41,54 @@ find_generator(mpz_t g, struct params *params)
     mpz_clears(exp, pminusone, tmp, NULL);
 }
 
-void
-encode(mpz_t elem, const char *str)
+int
+encode(mpz_t elem, const char *str, size_t strlen, const struct params *p)
 {
-    assert(0);
+    mpz_t exp, rop;
+
+    mpz_inits(exp, rop, NULL);
+
+    if (strlen >= FIELD_SIZE)
+        return FAILURE;
+    mpz_import(elem, strlen, -1, sizeof str[0], 0, 0, str);
+    mpz_add_ui(elem, elem, 1);
+
+    /* compute (p - 1) / 2 */
+    mpz_sub_ui(exp, p->p, 1);
+    mpz_divexact_ui(exp, exp, 2);
+    /* compute elem ^ exp mod p */
+    mpz_powm(rop, elem, exp, p->p);
+
+    if (mpz_cmp_ui(rop, 1) != 0) {
+        mpz_neg(elem, elem);
+        mpz_mod(elem, elem, p->p);
+    }
+
+    mpz_clears(exp, rop, NULL);
+
+    return SUCCESS;
 }
 
-void
-decode(char *str, const mpz_t elem)
+char *
+decode(const mpz_t elem, const struct params *p)
 {
-    assert(0);
+    mpz_t tmp;
+    char *out;
+    size_t count = 0;
+
+    mpz_init(tmp);
+
+    if (mpz_cmp(elem, p->q) <= 0) {
+        mpz_sub_ui(tmp, elem, 1);
+    } else {
+        mpz_neg(tmp, elem);
+        mpz_mod(tmp, tmp, p->p);
+        mpz_sub_ui(tmp, tmp, 1);
+    }
+
+    out = (char *) mpz_export(NULL, &count, -1, sizeof(char), 0, 0, tmp);
+
+    mpz_clear(tmp);
+
+    return out;
 }
