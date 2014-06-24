@@ -324,12 +324,13 @@ dm_ddh_dec(struct ddh_sk *sk, struct ddh_ctxt *ctxt,
 PyObject *
 pvw_send(PyObject *self, PyObject *args)
 {
-    PyObject *py_state, *py_msgs, *py_input;
+    PyObject *py_state, *py_msgs;
     unsigned int msglength;
     struct dm_ddh_crs crs;
     struct dm_ddh_pk pk;
     struct ddh_ctxt ctxt;
     struct state *st;
+    long N, num_ots;
     double start, end;
 
     if (!PyArg_ParseTuple(args, "OOI", &py_state, &py_msgs, &msglength))
@@ -339,25 +340,54 @@ pvw_send(PyObject *self, PyObject *args)
     if (st == NULL)
         return NULL;
 
-    py_input = PySequence_GetItem(py_msgs, 0);
+    if ((num_ots = PySequence_Length(py_msgs)) == -1)
+        return NULL;
+
+    if ((N = PySequence_Length(PySequence_GetItem(py_msgs, 0))) == -1)
+        return NULL;
+
+    if (N != 2) {
+        PyErr_SetString(PyExc_RuntimeError, "N must be 2");
+        return NULL;
+    }
 
     start = current_time();
     dm_ddh_crs_setup(&crs, EXT, &st->p);
     end = current_time();
     fprintf(stderr, "CRS setup: %f\n", end - start);
+
     start = current_time();
     dm_ddh_pk_setup(&pk);
     ddh_ctxt_setup(&ctxt);
-    receive_dm_ddh_pk(&pk, st);
 
-    for (int b = 0; b <= 1; ++b) {
-        char *m;
-        Py_ssize_t mlen;
+    for (int j = 0; j < num_ots; ++j) {
+        PyObject *py_input;
+        double start, end;
 
-        (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, b), &m, &mlen);
-        assert(mlen <= msglength);
-        dm_ddh_enc(&ctxt, &crs, &pk, b, m, mlen, &st->p);
-        send_ddh_ctxt(&ctxt, st);
+        py_input = PySequence_GetItem(py_msgs, j);
+
+        // start = current_time();
+        receive_dm_ddh_pk(&pk, st);
+        // end = current_time();
+        // fprintf(stderr, "receive dm ddh pk: %f\n", end - start);
+
+        for (int b = 0; b <= 1; ++b) {
+            char *m;
+            Py_ssize_t mlen;
+
+            (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, b),
+                                           &m, &mlen);
+            assert(mlen <= msglength);
+            // start = current_time();
+            dm_ddh_enc(&ctxt, &crs, &pk, b, m, mlen, &st->p);
+            // end = current_time();
+            // fprintf(stderr, "encrypt dm ddh: %f\n", end - start);
+
+            // start = current_time();
+            send_ddh_ctxt(&ctxt, st);
+            // end = current_time();
+            // fprintf(stderr, "send ddh ctxt: %f\n", end - start);
+        }
     }
     end = current_time();
     fprintf(stderr, "OT: %f\n", end - start);
@@ -372,14 +402,14 @@ pvw_send(PyObject *self, PyObject *args)
 PyObject *
 pvw_receive(PyObject *self, PyObject *args)
 {
-    PyObject *py_state, *py_choices, *output = NULL;
+    PyObject *py_state, *py_choices, *py_return = NULL;
     struct dm_ddh_crs crs;
     struct dm_ddh_pk pk;
     struct ddh_sk sk;
     struct ddh_ctxt ctxt;
     struct state *st;
     int num_ots;
-    unsigned int choice, N, msglength, err = 0;
+    unsigned int N, msglength, err = 0;
     double start, end;
 
     if (!PyArg_ParseTuple(args, "OOII", &py_state, &py_choices, &N, &msglength))
@@ -397,9 +427,8 @@ pvw_receive(PyObject *self, PyObject *args)
     if ((num_ots = PySequence_Length(py_choices)) == -1)
         return NULL;
 
-    choice = PyLong_AsLong(PySequence_GetItem(py_choices, 0));
-
     start = current_time();
+    // FIXME: choice of mode should not be hardcoded
     dm_ddh_crs_setup(&crs, EXT, &st->p);
     end = current_time();
     fprintf(stderr, "CRS setup: %f\n", end - start);
@@ -408,23 +437,48 @@ pvw_receive(PyObject *self, PyObject *args)
     ddh_sk_setup(&sk);
     ddh_ctxt_setup(&ctxt);
 
-    start = current_time();
-    dm_ddh_keygen(&pk, &sk, choice, &crs, &st->p);
-    send_dm_ddh_pk(&pk, st);
-    for (unsigned int b = 0; b <= 1; ++b) {
-        char *msg;
-        PyObject *str;
+    py_return = PyTuple_New(num_ots);
 
-        receive_ddh_ctxt(&ctxt, st);
-        msg = dm_ddh_dec(&sk, &ctxt, &st->p);
-        str = PyString_FromStringAndSize(msg, msglength);
-        free(msg);
-        if (str == NULL) {
-            err = 1;
-            goto cleanup;
-        }
-        if (choice == b) {
-            output = str;
+    start = current_time();
+    for (int j = 0; j < num_ots; ++j) {
+        unsigned int choice;
+        double start, end;
+
+        choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
+
+        // start = current_time();
+        dm_ddh_keygen(&pk, &sk, choice, &crs, &st->p);
+        // end = current_time();
+        // fprintf(stderr, "ddh keygen: %f\n", end - start);
+
+        // start = current_time();
+        send_dm_ddh_pk(&pk, st);
+        // end = current_time();
+        // fprintf(stderr, "send dm ddh pk: %f\n", end - start);
+
+        for (unsigned int b = 0; b <= 1; ++b) {
+            char *msg;
+            PyObject *str;
+
+            // start = current_time();
+            receive_ddh_ctxt(&ctxt, st);
+            // end = current_time();
+            // fprintf(stderr, "receive dm ddh ctxt: %f\n", end - start);
+
+            // start = current_time();
+            msg = dm_ddh_dec(&sk, &ctxt, &st->p);
+            // end = current_time();
+            // fprintf(stderr, "decrypt ddh ctxt: %f\n", end - start);
+
+            str = PyString_FromStringAndSize(msg, msglength);
+            free(msg);
+            if (str == NULL) {
+                err = 1;
+                goto cleanup;
+            }
+            if (choice == b) {
+                PyTuple_SetItem(py_return, j, str);
+            }
         }
     }
     end = current_time();
@@ -439,5 +493,5 @@ pvw_receive(PyObject *self, PyObject *args)
     if (err)
         return NULL;
     else
-        return output;
+        return py_return;
 }
