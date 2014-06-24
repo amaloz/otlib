@@ -1,3 +1,12 @@
+/*
+ * Implementation of maliciously secure OT as detailed by Peikert et al. [1].
+ * In particular, we implement the DDH protocol detailed in the paper.
+ *
+ * Author: Alex J. Malozemoff <amaloz@cs.umd.edu>
+ *
+ * [1] "A Framework for Efficient and Composable Oblivious Transfer."
+ *     C. Peikert, V. Vaikuntanathan, B. Waters. CRYPTO 2008.
+ */
 #include <Python.h>
 #include "pvw.h"
 
@@ -102,6 +111,9 @@ receive_ddh_ctxt(struct ddh_ctxt *ctxt, const struct state *st)
     array_to_mpz(ctxt->v, v, sizeof v);
     return SUCCESS;
 }
+
+// FIXME: how should we deal with the CRS?  Run it once and hardcode the
+// results?
 
 static void
 dm_ddh_setup_messy(struct dm_ddh_crs *crs, struct params *p)
