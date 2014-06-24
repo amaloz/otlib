@@ -3,7 +3,6 @@ from __future__ import print_function
 import random, time
 import numpy as np
 
-import npot
 import _otlib as _ot
 
 def binstr2bytes(s):
