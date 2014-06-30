@@ -1,4 +1,12 @@
-#include "otextension.h"
+/*
+ * Implementation if semi-honest OT extension as detailed by Ishai et al. [1].
+ *
+ * Author: Alex J. Malozemoff <amaloz@cs.umd.edu>
+ *
+ * [1] "Extending Oblivious Transfer Efficiently."
+ *     Y. Ishai, J. Kilian, K. Nissim, E. Petrank. CRYPTO 2003.
+ */
+#include "otext_iknp.h"
 
 #include "crypto.h"
 #include "net.h"
@@ -80,7 +88,7 @@ transpose(byte *array, int nrows, int ncols)
 }
 
 PyObject *
-otext_send(PyObject *self, PyObject *args)
+otext_iknp_send(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_msgs, *py_qt;
     struct state *st;
@@ -167,7 +175,7 @@ otext_send(PyObject *self, PyObject *args)
 }
 
 PyObject *
-otext_matrix_xor(PyObject *self, PyObject *args)
+otext_iknp_matrix_xor(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_T, *py_return = NULL, *py_t_xor_r;
     struct state *st;
@@ -216,7 +224,7 @@ otext_matrix_xor(PyObject *self, PyObject *args)
 }
 
 PyObject *
-otext_receive(PyObject *self, PyObject *args)
+otext_iknp_receive(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_T, *py_choices, *py_return = NULL;
     struct state *st;

@@ -9,20 +9,20 @@ MAXLENGTH = 4
 
 import time
 import otlib.ot_np as np
-import otlib.otext as otext
+import otlib.otext_iknp as iknp
 import otlib.ot_pvw as pvw
 import otlib._otlib as _ot
 
 def sender(args):
-    if not args.test_np and not args.test_otext and not args.test_pvw:
-        print('one of --test-np, --test-otext, --test-pvw must be used')
-        return
     state = _ot.init('127.0.0.1', repr(5000), 80, True)
     msgs = (('a' * MAXLENGTH, 'b' * MAXLENGTH),) * args.niters
     start = time.time()
-    if args.test_otext:
-        ot = otext.OTExtSender(state)
+    if args.test_iknp:
+        ot = iknp.OTExtSender(state)
         ot.send(msgs, MAXLENGTH, np)
+    if args.test_nnob:
+        ot = nnob.OTExtSender(state)
+        ot.send(msgs, pvw)
     if args.test_np:
         ot = np.OTSender(state)
         ot.send(msgs, MAXLENGTH)
@@ -34,15 +34,15 @@ def sender(args):
         
 
 def receiver(args):
-    if not args.test_np and not args.test_otext and not args.test_pvw:
-        print('one of --test-np, --test-otext, --test-pvw must be used')
-        return
     state = _ot.init('127.0.0.1', repr(5000), 80, False)
     choices = [random.randint(0, 1) for _ in xrange(args.niters)]
     start = time.time()
-    if args.test_otext:
-        ot = otext.OTExtReceiver(state)
+    if args.test_iknp:
+        ot = iknp.OTExtReceiver(state)
         r = ot.receive(choices, MAXLENGTH, np)
+    if args.test_nnob:
+        ot = nnob.OTExtReceiver(state)
+        r = ot.receive(choices, pvw)
     if args.test_np:
         ot = np.OTReceiver(state)
         r = ot.receive(choices, MAXLENGTH)
@@ -65,14 +65,17 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help='commands for OT sender')
     parser_sender.add_argument(
-        '--test-np', action='store_true',
-        help='test Naor-Pinkas OT implementation')
+        '--test-iknp', action='store_true',
+        help='test IKNP semi-honest OT extension implementation')
     parser_sender.add_argument(
-        '--test-otext', action='store_true',
-        help='test OT extension implementation')
+        '--test-nnob', action='store_true',
+        help='test NNOB malicious OT extension implementation')
+    parser_sender.add_argument(
+        '--test-np', action='store_true',
+        help='test Naor-Pinkas semi-honest OT implementation')
     parser_sender.add_argument(
         '--test-pvw', action='store_true',
-        help='test PVW OT implementation')
+        help='test PVW malicious OT implementation')
     parser_sender.add_argument(
         '--niters', action='store', type=int, default=80,
         help='number of iterations')
@@ -83,14 +86,17 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help='commands for OT receiver')
     parser_receiver.add_argument(
-        '--test-np', action='store_true',
-        help='test Naor-Pinkas OT implementation')
+        '--test-iknp', action='store_true',
+        help='test IKNP semi-honest OT extension implementation')
     parser_receiver.add_argument(
-        '--test-otext', action='store_true',
-        help='test OT extension implementation')
+        '--test-nnob', action='store_true',
+        help='test NNOB malicious OT extension implementation')
+    parser_receiver.add_argument(
+        '--test-np', action='store_true',
+        help='test Naor-Pinkas semi-honest OT implementation')
     parser_receiver.add_argument(
         '--test-pvw', action='store_true',
-        help='test PVW OT implementation')
+        help='test PVW malicious OT implementation')
     parser_receiver.add_argument(
         '--niters', action='store', type=int, default=80,
         help='number of iterations')

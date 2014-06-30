@@ -1,5 +1,5 @@
-#ifndef __OTLIB_NNOB_H__
-#define __OTLIB_NNOB_H__
+#ifndef __OTLIB_OTEXT_NNOB_H__
+#define __OTLIB_OTEXT_NNOB_H__
 
 #include <Python.h>
 

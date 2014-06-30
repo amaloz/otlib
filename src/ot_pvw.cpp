@@ -7,8 +7,7 @@
  * [1] "A Framework for Efficient and Composable Oblivious Transfer."
  *     C. Peikert, V. Vaikuntanathan, B. Waters. CRYPTO 2008.
  */
-#include <Python.h>
-#include "pvw.h"
+#include "ot_pvw.h"
 
 #include "gmputils.h"
 #include "net.h"
@@ -334,7 +333,7 @@ dm_ddh_dec(struct ddh_sk *sk, struct ddh_ctxt *ctxt,
 }
 
 PyObject *
-pvw_send(PyObject *self, PyObject *args)
+ot_pvw_send(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_msgs;
     unsigned int msglength;
@@ -412,7 +411,7 @@ pvw_send(PyObject *self, PyObject *args)
 }
 
 PyObject *
-pvw_receive(PyObject *self, PyObject *args)
+ot_pvw_receive(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_choices, *py_return = NULL;
     struct dm_ddh_crs crs;

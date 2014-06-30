@@ -7,9 +7,9 @@ __version__ = '0.0'
 __author__ = 'Alex J. Malozemoff'
 
 extra_sources = [
-    'naorpinkas.cpp',
-    'otextension.cpp',
-    'pvw.cpp',
+    'ot_np.cpp',
+    'ot_pvw.cpp',
+    'otext_iknp.cpp',
     # utils
     'crypto.cpp',
     'gmputils.cpp',

@@ -45,7 +45,7 @@ class OTExtSender(object):
         end = time.time()
         print('OT receive: %f' % (end - start))
         s = binstr2bytes(''.join([str(e) for e in s]))
-        _ot.otext_send(self._state, msgs, Q, s, maxlength, secparam)
+        _ot.otext_iknp_send(self._state, msgs, Q, s, maxlength, secparam)
 
 class OTExtReceiver(object):
     def __init__(self, state):
@@ -71,7 +71,7 @@ class OTExtReceiver(object):
         print('build T: %f' % (end - start))
 
         start = time.time()
-        inputs = _ot.otext_matrix_xor(self._state, T, r, m, secparam);
+        inputs = _ot.otext_iknp_matrix_xor(self._state, T, r, m, secparam);
         end = time.time()
         print('xor: %f' % (end - start))
 
@@ -81,7 +81,7 @@ class OTExtReceiver(object):
         print('OT send: %f' % (end - start))
 
         start = time.time()
-        r = _ot.otext_receive(self._state, choices, T, maxlength, secparam)
+        r = _ot.otext_iknp_receive(self._state, choices, T, maxlength, secparam)
         end = time.time()
         print('OText receive: %f' % (end - start))
 

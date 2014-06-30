@@ -1,4 +1,12 @@
-#include "naorpinkas.h"
+/*
+ * Implementation of semi-honest OT as detailed by Naor and Pinkas [1].
+ *
+ * Author: Alex J. Malozemoff <amaloz@cs.umd.edu>
+ *
+ * [1] "Efficient Oblivious Transfer Protocols."
+ *     N. Naor, B. Pinkas. SODA 2001.
+ */
+#include "ot_np.h"
 
 #include "crypto.h"
 #include "log.h"
@@ -17,7 +25,7 @@
 // static const char *tag = "OT-NP";
 
 PyObject *
-np_send(PyObject *self, PyObject *args)
+ot_np_send(PyObject *self, PyObject *args)
 {
     mpz_t r, gr, pk, pk0;
     mpz_t *Cs = NULL, *Crs = NULL, *pk0s = NULL;
@@ -183,7 +191,7 @@ np_send(PyObject *self, PyObject *args)
 }
 
 PyObject *
-np_receive(PyObject *self, PyObject *args)
+ot_np_receive(PyObject *self, PyObject *args)
 {
     mpz_t gr, pk0, pks;
     mpz_t *Cs = NULL, *ks = NULL;

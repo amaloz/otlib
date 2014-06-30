@@ -12,7 +12,7 @@
  *     J.B. Nielsen, P.S. Nordholt, C. Orlandi, S.S. Burra. CRYPTO 2012.
  *     Full version: https://eprint.iacr.org/2011/091
  */
-#include "nnob.h"
+#include "otext_nnob.h"
 
 #include <math.h>
 
