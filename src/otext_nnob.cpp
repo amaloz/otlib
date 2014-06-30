@@ -16,27 +16,90 @@
 
 #include <math.h>
 
+#include "crypto.h"
+#include "net.h"
+#include "state.h"
+#include "utils.h"
+
+#define ERROR { err = 1; goto cleanup; }
+
 PyObject *
 otext_nnob_send(PyObject *self, PyObject *args)
 {
-    PyObject *py_state, *py_bits, *py_ells;
-    unsigned int secparam, num;
-    char *Lzeros = NULL, *Lones = NULL;
+    PyObject *py_state, *py_rbits, *py_ells;
+    unsigned int secparam, num, seed;
+    char *Ls = NULL, *bitstring = NULL;
+    unsigned int *perm = NULL, *S = NULL;
+    struct state *st;
     long m, err = 0;
 
-    if (!PyArg_ParseTuple(args, "OOI", &py_state, &py_bits, &py_ells, &secparam))
+    if (!PyArg_ParseTuple(args, "OOI", &py_state, &py_rbits, &py_ells, &secparam))
         return NULL;
 
     st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
     if (st == NULL)
         return NULL;
 
-    if ((m = PySequence_Length(py_msgs)) == -1)
+    if ((m = PySequence_Length(py_bits)) == -1)
         return NULL;
 
     num = ceil(8.0 / 3.0 * secparam);
 
-    return NULL;
+    Ls = (char *) pymalloc(m * num / 8);
+    if (Ls == NULL)
+        ERROR;
+    bitstring = (char *) pymalloc(m * num / 8);
+    if (bitstring == NULL)
+        ERROR;
+
+    /* Step 5 */
+
+    for (unsigned int i = 0; i < num; ++i) {
+        char *L, *ell;
+        Py_ssize_t len;
+
+        (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_ells, i), &ell, &len);
+        assert(len == secparam / 8);
+        L = Ls + i * m / 8;
+
+        for (int j = 0; j < m / secparam; ++j) {
+            sha1_hash(L + j * secparam / 8, secparam / 8,
+                      i * m / secparam + j, (unsigned char *) ell, len);
+        }
+    }
+
+    /* Step 7 */
+
+    if (pyrecv(st->sockfd, bitstring, m * num / 8, 0) == -1)
+        ERROR;
+
+    xorarray((unsigned char *) Ls, m * num / 8,
+             (unsigned char *) bitstring, m * num / 8);
+
+    /* Step 8 */
+
+    seed = gmp_urandomb_ui(st->p.rnd, sizeof(unsigned int) * 8);
+    perm = (unsigned int *) pymalloc(sizeof(unsigned int) * num);
+    S = (unsigned int *) pymalloc(sizeof(unsigned int) * num / 2);
+    (void) random_permutation(perm, num, S, seed);
+    if (pysend(st->sockfd, perm, sizeof(unsigned int) * num, 0) == -1)
+        ERROR;
+    if (pysend(st->sockfd, S, sizeof(unsigned int) * num / 2, 0) == -1)
+        ERROR;
+
+    /* Step 9 */
+    
+
+ cleanup:
+    if (bitstring)
+        free(bitstring);
+    if (Ls)
+        free(Ls);
+
+    if (err)
+        return NULL;
+    else
+        Py_RETURN_NONE;
 }
 
 PyObject *
@@ -44,7 +107,10 @@ otext_nnob_receive(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_choicestr, *py_seeds;
     unsigned int secparam, num;
-    char *Lzeros = NULL, *Lones = NULL, *bitstring;
+    char *Lzeros = NULL, *Lones = NULL, *bitstring = NULL;
+    char *choicestr;
+    Py_ssize_t choicestrlen;
+    struct state *st;
     long m, err = 0;
 
     if (!PyArg_ParseTuple(args, "OOOI", &py_state, &py_choicestr, &py_seeds,
@@ -55,8 +121,9 @@ otext_nnob_receive(PyObject *self, PyObject *args)
     if (st == NULL)
         return NULL;
 
-    if ((m = PySequence_Length(py_msgs)) == -1)
+    if ((m = PySequence_Length(py_choicestr)) == -1)
         return NULL;
+    assert(m >= secparam);
 
     num = ceil(8.0 / 3.0 * secparam);
 
@@ -78,8 +145,8 @@ otext_nnob_receive(PyObject *self, PyObject *args)
 
     /* Step 4 */
 
-    for (int i = 0; i < num; ++i) {
-        char *Lzero, Lone;
+    for (unsigned int i = 0; i < num; ++i) {
+        char *Lzero, *Lone;
 
         Lzero = Lzeros + i * (m / 8);
         Lone = Lones + i * (m / 8);
@@ -100,13 +167,37 @@ otext_nnob_receive(PyObject *self, PyObject *args)
 
     /* Step 6 */
 
-    for (int i = 0; i < num; ++i) {
+    (void) PyBytes_AsStringAndSize(py_choicestr, &choicestr, &choicestrlen);
+    assert(choicestrlen == m / 8);
+
+    for (unsigned int i = 0; i < num; ++i) {
         char *entry, *Lzero, *Lone;
 
         entry = bitstring + i * m / 8;
         Lzero = Lzeros + i * m / 8;
         Lone = Lones + i * m / 8;
+
+        /* Compute L_i^0 \xor L_i^1 \xor choicestr */
+
+        memcpy(entry, Lzero, m / 8);
+        xorarray((unsigned char *) entry, m / 8,
+                 (unsigned char *) Lone, m / 8);
+        xorarray((unsigned char *) entry, m / 8,
+                 (unsigned char *) choicestr, m / 8);
     }
+
+    if (pysend(st->sockfd, bitstring, m * num / 8, 0) == -1)
+        ERROR;
+
+    /* Step 8 */
+
+    /* Step 9 */
+
+    /* Step 10 */
+
+    /* Step 12 */
+
+    /* Step 14 */
 
  cleanup:
     if (Lzeros)

@@ -16,34 +16,34 @@
 #include <gmp.h>
 #include <openssl/sha.h>
 
-static const byte MASK_BIT[8] =
+static const unsigned char MASK_BIT[8] =
     {0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1};
-static const byte CMASK_BIT[8] =
+static const unsigned char CMASK_BIT[8] =
     {0x7f, 0xbf, 0xdf, 0xef, 0xf7, 0xfb, 0xfd, 0xfe};
-static const byte MASK_SET_BIT_C[2][8] =
+static const unsigned char MASK_SET_BIT_C[2][8] =
     {{0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1},
      {   0,    0,    0,    0,   0,   0,   0,   0}};
 
-static inline byte
-get_bit(const byte *array, int idx)
+static inline unsigned char
+get_bit(const unsigned char *array, int idx)
 {
     return !!(array[idx >> 3] & MASK_BIT[idx & 0x7]);
 }
 
 static inline void
-set_bit(byte *array, int idx, byte bit)
+set_bit(unsigned char *array, int idx, unsigned char bit)
 {
     array[idx >> 3] = (array[idx >> 3] & CMASK_BIT[idx & 0x7]) | MASK_SET_BIT_C[!bit][idx & 0x7];
 }
 
-static byte *
+static unsigned char *
 to_array(PyObject *columns, int nrows, int ncols)
 {
-    byte *array;
+    unsigned char *array;
     double start, end;
 
     start = current_time();
-    array = (byte *) pymalloc(sizeof(byte) * nrows * ncols / 8);
+    array = (unsigned char *) pymalloc(nrows * ncols / 8);
     if (array == NULL)
         return NULL;
     memset(array, '\0', nrows * ncols / 8);
@@ -63,21 +63,21 @@ to_array(PyObject *columns, int nrows, int ncols)
     return array;
 }
 
-static byte *
-transpose(byte *array, int nrows, int ncols)
+static unsigned char *
+transpose(unsigned char *array, int nrows, int ncols)
 {
-    byte *tarray;
+    unsigned char *tarray;
     double start, end;
 
     start = current_time();
-    tarray = (byte *) pymalloc(sizeof(byte) * nrows * ncols / 8);
+    tarray = (unsigned char *) pymalloc(nrows * ncols / 8);
     if (tarray == NULL)
         return NULL;
     memset(tarray, '\0', nrows * ncols / 8);
 
     for (int i = 0; i < ncols; ++i) {
         for (int j = 0; j < nrows; ++j) {
-            byte bit = get_bit(array, i * nrows + j);
+            unsigned char bit = get_bit(array, i * nrows + j);
             set_bit(tarray, j * ncols + i, bit);
         }
     }
@@ -94,7 +94,7 @@ otext_iknp_send(PyObject *self, PyObject *args)
     struct state *st;
     long m, err = 0;
     char *s, *msg = NULL;
-    byte *array = NULL, *tarray = NULL;
+    unsigned char *array = NULL, *tarray = NULL;
     int slen;
     unsigned int msglength, secparam;
     double start, end;
@@ -134,23 +134,26 @@ otext_iknp_send(PyObject *self, PyObject *args)
         py_input = PySequence_GetItem(py_msgs, j);
         for (int i = 0; i < 2; ++i) {
             char *m;
-            byte *q;
+            unsigned char *q;
             Py_ssize_t mlen;
             char hash[SHA_DIGEST_LENGTH];
 
             q = &tarray[j * (secparam / 8)];
             assert(slen <= (int) sizeof hash);
             (void) memset(hash, '\0', sizeof hash);
-            xorarray((byte *) hash, sizeof hash, q, secparam / 8);
+            xorarray((unsigned char *) hash, sizeof hash, q, secparam / 8);
             if (i == 1) {
-                xorarray((byte *) hash, sizeof hash, (byte *) s, slen);
+                xorarray((unsigned char *) hash, sizeof hash,
+                         (unsigned char *) s, slen);
             }
-            sha1_hash(msg, msglength, j, (unsigned char *) hash, SHA_DIGEST_LENGTH);
+            sha1_hash(msg, msglength, j,
+                      (unsigned char *) hash, SHA_DIGEST_LENGTH);
 
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= msglength);
-            xorarray((byte *) msg, msglength, (byte *) m, mlen);
+            xorarray((unsigned char *) msg, msglength,
+                     (unsigned char *) m, mlen);
             if (pysend(st->sockfd, msg, msglength, 0) == -1) {
                 err = 1;
                 goto cleanup;
@@ -210,7 +213,7 @@ otext_iknp_matrix_xor(PyObject *self, PyObject *args)
         (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_T, i), &t, &tlen);
         assert(tlen == m);
         memcpy(t_xor_r, t, m);
-        xorarray((byte *) t_xor_r, m, (byte *) r, m);
+        xorarray((unsigned char *) t_xor_r, m, (unsigned char *) r, m);
         py_t_xor_r = PyString_FromStringAndSize(t_xor_r, m);
 
         tuple = PyTuple_New(2);
@@ -229,7 +232,7 @@ otext_iknp_receive(PyObject *self, PyObject *args)
     PyObject *py_state, *py_T, *py_choices, *py_return = NULL;
     struct state *st;
     char *from = NULL, *msg = NULL;
-    byte *array = NULL, *tarray = NULL;
+    unsigned char *array = NULL, *tarray = NULL;
     int m, err = 0;
     unsigned int maxlength, secparam;
     double start, end;
@@ -277,7 +280,7 @@ otext_iknp_receive(PyObject *self, PyObject *args)
 
         for (int i = 0; i < 2; ++i) {
             char hash[SHA_DIGEST_LENGTH];
-            byte *t;
+            unsigned char *t;
             PyObject *str;
 
             if (pyrecv(st->sockfd, from, maxlength, 0) == -1) {
@@ -291,7 +294,8 @@ otext_iknp_receive(PyObject *self, PyObject *args)
             (void) memcpy(hash, t, secparam / 8);
             sha1_hash(msg, maxlength, j, (unsigned char *) hash, SHA_DIGEST_LENGTH);
 
-            xorarray((byte *) from, maxlength, (byte *) msg, maxlength);
+            xorarray((unsigned char *) from, maxlength,
+                     (unsigned char *) msg, maxlength);
             str = PyString_FromStringAndSize(from, maxlength);
             if (str == NULL) {
                 err = 1;

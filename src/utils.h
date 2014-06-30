@@ -1,6 +1,7 @@
 #ifndef __OTLIB_UTILS_H__
 #define __OTLIB_UTILS_H__
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #define SUCCESS 0
@@ -24,15 +25,10 @@ extern void __assert_fail (const char *__assertion, const char *__file,
 #define MAX(a, b)                               \
     (a) > (b) ? (a) : (b)
 
-typedef unsigned char byte;
-
 double
 current_time(void);
 
 void *
 pymalloc(size_t size);
-
-void
-xorarray(byte *a, const size_t alen, const byte *b, const size_t blen);
 
 #endif

@@ -10,6 +10,7 @@ extra_sources = [
     'ot_np.cpp',
     'ot_pvw.cpp',
     'otext_iknp.cpp',
+    'otext_nnob.cpp',
     # utils
     'crypto.cpp',
     'gmputils.cpp',

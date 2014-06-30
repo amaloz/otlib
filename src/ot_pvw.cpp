@@ -373,7 +373,7 @@ ot_pvw_send(PyObject *self, PyObject *args)
 
     for (int j = 0; j < num_ots; ++j) {
         PyObject *py_input;
-        double start, end;
+        // double start, end;
 
         py_input = PySequence_GetItem(py_msgs, j);
 
@@ -453,7 +453,7 @@ ot_pvw_receive(PyObject *self, PyObject *args)
     start = current_time();
     for (int j = 0; j < num_ots; ++j) {
         unsigned int choice;
-        double start, end;
+        // double start, end;
 
         choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
 

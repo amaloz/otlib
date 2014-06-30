@@ -154,7 +154,7 @@ ot_np_send(PyObject *self, PyObject *args)
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= maxlength);
-            xorarray((byte *) msg, maxlength, (byte *) m, mlen);
+            xorarray((unsigned char *) msg, maxlength, (unsigned char *) m, mlen);
             if (pysend(s->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
@@ -297,7 +297,7 @@ ot_np_receive(PyObject *self, PyObject *args)
             }
             mpz_to_array(buf, ks[j], sizeof buf);
             sha1_hash(from, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
-            xorarray((byte *) msg, maxlength, (byte *) from, maxlength);
+            xorarray((unsigned char *) msg, maxlength, (unsigned char *) from, maxlength);
             if (i == choice) {
                 PyObject *str = PyString_FromStringAndSize(msg, maxlength);
                 if (str == NULL) {

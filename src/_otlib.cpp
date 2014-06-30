@@ -16,8 +16,8 @@ methods[] = {
     {"otext_iknp_send", otext_iknp_send, METH_VARARGS, "TODO."}, // TODO:
     {"otext_iknp_matrix_xor", otext_iknp_matrix_xor, METH_VARARGS, "TODO."}, // TODO:
     {"otext_iknp_receive", otext_iknp_receive, METH_VARARGS, "TODO."}, // TODO:
-    // {"otext_nnob_send", otext_nnob_send, METH_VARARGS, "TODO."}, // TODO:
-    // {"otext_nnob_receive", otext_nnob_receive, METH_VARARGS, "TODO."}, // TODO:
+    {"otext_nnob_send", otext_nnob_send, METH_VARARGS, "TODO."}, // TODO:
+    {"otext_nnob_receive", otext_nnob_receive, METH_VARARGS, "TODO."}, // TODO:
     {NULL, NULL, 0, NULL}
 };
 
