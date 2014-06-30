@@ -6,7 +6,8 @@
 #include "utils.h"
 
 void
-sha1_hash(char *output, unsigned int outputlen, int counter, unsigned char *hash)
+sha1_hash(char *output, size_t outputlen, int counter,
+          unsigned char *hash, size_t hashlen)
 {
     unsigned int length = 0;
 
@@ -17,13 +18,13 @@ sha1_hash(char *output, unsigned int outputlen, int counter, unsigned char *hash
         (void) SHA1_Init(&c);
         if (length == 0) {
             (void) SHA1_Update(&c, &counter, sizeof counter);
-            (void) SHA1_Update(&c, hash, SHA_DIGEST_LENGTH);
+            (void) SHA1_Update(&c, hash, hashlen);
             (void) SHA1_Final(hash, &c);
         } else {
-            (void) SHA1_Update(&c, output + length - SHA_DIGEST_LENGTH, SHA_DIGEST_LENGTH);
+            (void) SHA1_Update(&c, output + length - hashlen, hashlen);
             (void) SHA1_Final(hash, &c);
         }
-        n = MIN(outputlen - length, SHA_DIGEST_LENGTH);
+        n = MIN(outputlen - length, hashlen);
         (void) memcpy(output + length, hash, n);
         length += n;
     }

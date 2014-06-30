@@ -137,7 +137,7 @@ otext_send(PyObject *self, PyObject *args)
             if (i == 1) {
                 xorarray((byte *) hash, sizeof hash, (byte *) s, slen);
             }
-            sha1_hash(msg, msglength, j, (unsigned char *) hash);
+            sha1_hash(msg, msglength, j, (unsigned char *) hash, SHA_DIGEST_LENGTH);
 
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
@@ -281,7 +281,7 @@ otext_receive(PyObject *self, PyObject *args)
             t = &tarray[j * (secparam / 8)];
             (void) memset(hash, '\0', sizeof hash);
             (void) memcpy(hash, t, secparam / 8);
-            sha1_hash(msg, maxlength, j, (unsigned char *) hash);
+            sha1_hash(msg, maxlength, j, (unsigned char *) hash, SHA_DIGEST_LENGTH);
 
             xorarray((byte *) from, maxlength, (byte *) msg, maxlength);
             str = PyString_FromStringAndSize(from, maxlength);

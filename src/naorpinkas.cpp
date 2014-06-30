@@ -142,7 +142,7 @@ np_send(PyObject *self, PyObject *args)
                 mpz_mod(pk, pk, s->p.p);
                 mpz_to_array(buf, pk, sizeof buf);
             }
-            sha1_hash(msg, maxlength, i, (unsigned char *) buf);
+            sha1_hash(msg, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, i),
                                            &m, &mlen);
             assert(mlen <= maxlength);
@@ -288,7 +288,7 @@ np_receive(PyObject *self, PyObject *args)
                 goto cleanup;
             }
             mpz_to_array(buf, ks[j], sizeof buf);
-            sha1_hash(from, maxlength, i, (unsigned char *) buf);
+            sha1_hash(from, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
             xorarray((byte *) msg, maxlength, (byte *) from, maxlength);
             if (i == choice) {
                 PyObject *str = PyString_FromStringAndSize(msg, maxlength);
