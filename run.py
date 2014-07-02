@@ -9,8 +9,9 @@ MAXLENGTH = 4
 
 import time
 import otlib.ot_np as np
-import otlib.otext_iknp as iknp
 import otlib.ot_pvw as pvw
+import otlib.otext_iknp as iknp
+import otlib.otext_nnob as nnob
 import otlib._otlib as _ot
 
 def sender(args):

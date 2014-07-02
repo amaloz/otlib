@@ -388,6 +388,8 @@ ot_pvw_send(PyObject *self, PyObject *args)
 
             (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_input, b),
                                            &m, &mlen);
+            fprintf(stderr, "%s\n", m);
+            fprintf(stderr, "%ld %u\n", mlen, msglength);
             assert(mlen <= msglength);
             // start = current_time();
             dm_ddh_enc(&ctxt, &crs, &pk, b, m, mlen, &st->p);

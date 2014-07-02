@@ -28,8 +28,8 @@ otext_nnob_send(PyObject *self, PyObject *args)
 {
     PyObject *py_state, *py_rbits, *py_ells;
     unsigned int secparam, num, seed;
-    char *Ls = NULL, *bitstring = NULL;
-    unsigned int *perm = NULL, *S = NULL;
+    char *Ls = NULL, *bitstring = NULL, *Zs = NULL;
+    unsigned int *perm = NULL, *S = NULL, *D = NULL;
     struct state *st;
     long m, err = 0;
 
@@ -40,7 +40,7 @@ otext_nnob_send(PyObject *self, PyObject *args)
     if (st == NULL)
         return NULL;
 
-    if ((m = PySequence_Length(py_bits)) == -1)
+    if ((m = PySequence_Length(py_rbits)) == -1)
         return NULL;
 
     num = ceil(8.0 / 3.0 * secparam);
@@ -80,7 +80,11 @@ otext_nnob_send(PyObject *self, PyObject *args)
 
     seed = gmp_urandomb_ui(st->p.rnd, sizeof(unsigned int) * 8);
     perm = (unsigned int *) pymalloc(sizeof(unsigned int) * num);
+    if (perm == NULL)
+        ERROR;
     S = (unsigned int *) pymalloc(sizeof(unsigned int) * num / 2);
+    if (S == NULL)
+        ERROR;
     (void) random_permutation(perm, num, S, seed);
     if (pysend(st->sockfd, perm, sizeof(unsigned int) * num, 0) == -1)
         ERROR;
@@ -88,13 +92,69 @@ otext_nnob_send(PyObject *self, PyObject *args)
         ERROR;
 
     /* Step 9 */
-    
+
+    D = (unsigned int *) pymalloc(sizeof(unsigned int) * num / 2);
+    if (D == NULL)
+        ERROR;
+
+    /* Step 9a */
+
+    for (unsigned int i = 0; i < num / 2; ++i) {
+        unsigned int j, k, bit, pbit;
+
+        bit = (unsigned int) PyLong_AsLong(PySequence_GetItem(py_rbits, i));
+        j = perm[S[i]];
+        pbit = (unsigned int) PyLong_AsLong(PySequence_GetItem(py_rbits, j));
+        bit ^= pbit;
+        j = i / (8 * sizeof(unsigned int));
+        k = i % (8 * sizeof(unsigned int));
+        D[j] |= bit << k;
+    }
+    if (pysend(st->sockfd, D, sizeof(unsigned int) * num / 2, 0) == -1)
+        ERROR;
+
+    /* Step 9b */
+
+    Zs = (char *) pymalloc(m * num / 8);
+    if (Zs == NULL)
+        ERROR;
+
+    for (unsigned int i = 0; i < num / 2; ++i) {
+        char *L, *Lp, *Z;
+        long xi, xpi;
+
+        xi = PyLong_AsLong(PySequence_GetItem(py_rbits, i));
+        xpi = perm[S[i]];
+
+        L = Ls + xi * m / 8;
+        Lp = Ls + xpi * m / 8;
+        Z = Zs + i * m / 8;
+
+        memcpy(Z, L, m / 8);
+        xorarray((unsigned char *) Z, m / 8, (unsigned char *) Lp, m / 8);
+    }
+
+    /* Step 10 */
+
+    /* Step 11 */
+
+    /* Step 13 */
+
+    /* Step 15 */
 
  cleanup:
     if (bitstring)
         free(bitstring);
     if (Ls)
         free(Ls);
+    if (perm)
+        free(perm);
+    if (S)
+        free(S);
+    if (D)
+        free(D);
+    if (Zs)
+        free(Zs);
 
     if (err)
         return NULL;
