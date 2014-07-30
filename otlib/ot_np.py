@@ -3,8 +3,8 @@ import ot
 
 class OTSender(ot.OTSender):
     def __init__(self, state):
-        super(OTSender, self).__init__(state, _ot.np_send)
+        super(OTSender, self).__init__(state, _ot.ot_np_send)
 
 class OTReceiver(ot.OTReceiver):
     def __init__(self, state):
-        super(OTReceiver, self).__init__(state, _ot.np_receive)
+        super(OTReceiver, self).__init__(state, _ot.ot_np_receive)

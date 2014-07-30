@@ -71,7 +71,7 @@ class OTExtReceiver(object):
         print('build T: %f' % (end - start))
 
         start = time.time()
-        inputs = _ot.otext_iknp_matrix_xor(self._state, T, r, m, secparam);
+        inputs = _ot.otext_iknp_matrix_xor(self._state, T, r, m, secparam)
         end = time.time()
         print('xor: %f' % (end - start))
 
