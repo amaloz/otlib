@@ -1,15 +1,26 @@
 #ifndef __OTLIB_OTEXT_IKNP_H__
 #define __OTLIB_OTEXT_IKNP_H__
 
-#include <Python.h>
+#include <stddef.h>
+#include <unistd.h>
 
-PyObject *
-otext_iknp_send(PyObject *self, PyObject *args);
+typedef void * (*msg_reader)(void *msgs, int idx);
+typedef void (*item_reader)(void *item, int idx, void *m, ssize_t *mlen);
 
-PyObject *
-otext_iknp_matrix_xor(PyObject *self, PyObject *args);
+int
+otext_iknp_send(struct state *st, void *msgs, long nmsgs,
+                unsigned int msglength, unsigned int secparam,
+                char *s, int slen, unsigned char *array,
+                msg_reader msg_reader, item_reader item_reader);
 
-PyObject *
-otext_iknp_receive(PyObject *self, PyObject *args);
+typedef int (*choice_reader)(void *choices, int idx);
+typedef int (*msg_writer)(void *array, int idx, void *msg, size_t maxlength);
+
+int
+otext_iknp_recv(struct state *st, void *choices, long nchoices,
+                size_t maxlength, unsigned int secparam,
+                unsigned char *array,
+                void *out,
+                choice_reader choice_reader, msg_writer msg_writer);
 
 #endif

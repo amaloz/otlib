@@ -1,8 +1,8 @@
-#include <Python.h>
+#include "py_state.h"
 
-#include "net.h"
-#include "state.h"
-#include "utils.h"
+#include "../net.h"
+#include "../state.h"
+#include "../utils.h"
 
 #include <fcntl.h>
 #include <netdb.h>
@@ -75,4 +75,66 @@ state_destructor(PyObject *self)
     if (s) {
         state_cleanup(s);
     }
+}
+
+PyObject *
+py_state_init(PyObject *self, PyObject *args)
+{
+    struct state *st;
+    char *host, *port;
+    int length, isserver;
+
+    if (!PyArg_ParseTuple(args, "ssii", &host, &port, &length, &isserver))
+        return NULL;
+
+    st = (struct state *) pymalloc(sizeof(struct state));
+    if (st == NULL)
+        goto error;
+
+    if (state_initialize(st, length) == 1)
+        goto error;
+    if (isserver) {
+        struct sockaddr_storage their_addr;
+        socklen_t sin_size = sizeof their_addr;
+        char addr[INET6_ADDRSTRLEN];
+
+        st->serverfd = init_server(host, port);
+        if (st->serverfd == -1) {
+            PyErr_SetString(PyExc_RuntimeError, "server initialization failed");
+            goto error;
+        }
+        st->sockfd = accept(st->serverfd, (struct sockaddr *) &their_addr,
+                           &sin_size);
+        if (st->sockfd == -1) {
+            perror("accept");
+            (void) close(st->serverfd);
+            PyErr_SetString(PyExc_RuntimeError, "accept failed");
+        }
+
+        inet_ntop(their_addr.ss_family,
+                  get_in_addr((struct sockaddr *) &their_addr),
+                  addr, sizeof addr);
+        (void) fprintf(stderr, "server: got connection from %s\n", addr);
+    } else {
+        st->sockfd = init_client(host, port);
+        if (st->sockfd == -1) {
+            PyErr_SetString(PyExc_RuntimeError, "client initialization failed");
+            goto error;
+        }
+    }
+
+    {
+        PyObject *py_st;
+        py_st = PyCapsule_New((void *) st, NULL, state_destructor);
+        if (py_st == NULL)
+            goto error;
+        return py_st;
+    }
+
+ error:
+    if (st) {
+        state_cleanup(st);
+    }
+
+    return NULL;
 }

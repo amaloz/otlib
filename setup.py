@@ -11,13 +11,17 @@ extra_sources = [
     'ot_pvw.cpp',
     'otext_iknp.cpp',
     'otext_nnob.cpp',
+    # python wrappers
+    'python/py_state.cpp',
+    'python/py_otext_iknp.cpp',
     # utils
     'crypto.cpp',
     'gmputils.cpp',
     'log.cpp',
     'net.cpp',
-    'state.cpp',
     'utils.cpp',
+    # cmp
+    'cmp/cmp.c',
 ]
 extra_sources = map(lambda f: 'src/' + f, extra_sources)
 
@@ -26,7 +30,7 @@ otlib = Extension(
     libraries = ['gmp', 'ssl', 'crypto'],
     extra_compile_args = ['-g', '-Wall'],
     sources = [
-        'src/_otlib.cpp',
+        'src/python/_otlib.cpp',
     ] + extra_sources,
 )
 

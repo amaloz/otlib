@@ -80,9 +80,9 @@ class OTExtReceiver(object):
         end = time.time()
         print('OT send: %f' % (end - start))
 
-        start = time.time()
+        # start = time.time()
         r = _ot.otext_iknp_receive(self._state, choices, T, maxlength, secparam)
-        end = time.time()
-        print('OText receive: %f' % (end - start))
+        # end = time.time()
+        # print('OText receive: %f' % (end - start))
 
         return r

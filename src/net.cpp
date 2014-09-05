@@ -115,10 +115,23 @@ init_client(const char *addr, const char *port)
 int
 pysend(int socket, const void *buffer, size_t length, int flags)
 {
-    if (send(socket, buffer, length, flags) == -1) {
-        PyErr_SetString(PyExc_RuntimeError, strerror(errno));
-        return -1;
+    size_t total = 0;
+    size_t bytesleft = length;
+    ssize_t n;
+
+    while (total < length) {
+        n = send(socket, (char *) buffer + total, bytesleft, flags);
+        if (n == -1) {
+            PyErr_SetString(PyExc_RuntimeError, strerror(errno));
+            return -1;
+        }
+        total += n;
+        bytesleft -= n;
     }
+    // if (send(socket, buffer, length, flags) == -1) {
+    //     PyErr_SetString(PyExc_RuntimeError, strerror(errno));
+    //     return -1;
+    // }
     return 0;
 }
 
