@@ -185,22 +185,6 @@ py_otext_iknp_send(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
 }
 
-static int
-py_choice_reader(void *choices, int idx)
-{
-    return PyLong_AsLong(PySequence_GetItem((PyObject *) choices, idx));
-}
-
-static int
-py_msg_writer(void *out, int idx, void *msg, size_t maxlength)
-{
-    PyObject *str = PyString_FromStringAndSize((char *) msg, maxlength);
-    if (str == NULL)
-        return 1;
-    PyTuple_SetItem((PyObject *) out, idx, str);
-    return 0;
-}
-
 PyObject *
 py_otext_iknp_recv(PyObject *self, PyObject *args)
 {
@@ -237,7 +221,7 @@ py_otext_iknp_recv(PyObject *self, PyObject *args)
     py_return = PyTuple_New(nchoices);
 
     err = otext_iknp_recv(st, py_choices, nchoices, maxlength, secparam, tarray,
-                          py_return, py_choice_reader, py_msg_writer);
+                          py_return, py_ot_choice_reader, py_ot_msg_writer);
 
  cleanup:
     if (array)

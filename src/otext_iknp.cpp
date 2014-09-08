@@ -7,6 +7,7 @@
  *     Y. Ishai, J. Kilian, K. Nissim, E. Petrank. CRYPTO 2003.
  */
 #include "otext_iknp.h"
+#include "ot.h"
 
 #include "crypto.h"
 #include "net.h"
@@ -87,9 +88,8 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
 int
 otext_iknp_recv(struct state *st, void *choices, long nchoices,
                 size_t maxlength, unsigned int secparam,
-                unsigned char *array,
-                void *out,
-                choice_reader choice_reader, msg_writer msg_writer)
+                unsigned char *array, void *out,
+                ot_choice_reader ot_choice_reader, ot_msg_writer ot_msg_writer)
 {
     char *from = NULL, *msg = NULL;
     double start, end;
@@ -111,7 +111,7 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
     for (int j = 0; j < nchoices; ++j) {
         int choice;
 
-        choice = choice_reader(choices, j);
+        choice = ot_choice_reader(choices, j);
 
         for (int i = 0; i < 2; ++i) {
             char hash[SHA_DIGEST_LENGTH];
@@ -138,7 +138,7 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
             xorarray((unsigned char *) from, maxlength,
                      (unsigned char *) msg, maxlength);
             if (i == choice) {
-                msg_writer(out, j, from, maxlength);
+                ot_msg_writer(out, j, from, maxlength);
             }
         }
     }

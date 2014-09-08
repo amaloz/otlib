@@ -58,129 +58,30 @@ py_ot_np_send(PyObject *self, PyObject *args)
 PyObject *
 py_ot_np_recv(PyObject *self, PyObject *args)
 {
-    mpz_t gr, pk0, pks;
-    mpz_t *Cs = NULL, *ks = NULL;
-    char buf[FIELD_SIZE], *from = NULL, *msg = NULL;
-    struct state *s;
-    PyObject *py_state, *py_choices, *py_return = NULL;
-    int num_ots, err = 0;
-    int N, msglength;
+    PyObject *state, *choices, *out = NULL;
+    struct state *st;
+    int nchoices, err = 0;
+    int N, maxlength;
 
-    if (!PyArg_ParseTuple(args, "OOii", &py_state, &py_choices, &N, &msglength))
+    if (!PyArg_ParseTuple(args, "OOii", &state, &choices, &N, &maxlength))
         return NULL;
 
-    s = (struct state *) PyCapsule_GetPointer(py_state, NULL);
-    if (s == NULL)
+    st = (struct state *) PyCapsule_GetPointer(state, NULL);
+    if (st == NULL)
         return NULL;
 
-    if ((num_ots = PySequence_Length(py_choices)) == -1)
+    if ((nchoices = PySequence_Length(choices)) == -1)
         return NULL;
 
-    mpz_inits(gr, pk0, pks, NULL);
+    out = PyTuple_New(nchoices);
+    
+    err = ot_np_recv(st, choices, nchoices, maxlength, N, out,
+                     py_ot_choice_reader, py_ot_msg_writer);
 
-    py_return = PyTuple_New(num_ots);
-
-    msg = (char *) malloc(sizeof(char) * msglength);
-    if (msg == NULL)
-        ERROR;
-    from = (char *) malloc(sizeof(char) * msglength);
-    if (from == NULL)
-        ERROR;
-    Cs = (mpz_t *) malloc(sizeof(mpz_t) * (N - 1));
-    if (Cs == NULL)
-        ERROR;
-    for (int i = 0; i < N - 1; ++i) {
-        mpz_init(Cs[i]);
-    }
-    ks = (mpz_t *) malloc(sizeof(mpz_t) * num_ots);
-    if (ks == NULL)
-        ERROR;
-    for (int j = 0; j < num_ots; ++j) {
-        mpz_init(ks[j]);
-    }
-
-    // get g^r from sender
-    if (recv(s->sockfd, buf, sizeof buf, 0) == -1)
-        ERROR;
-    array_to_mpz(gr, buf, sizeof buf);
-
-    // get Cs from sender
-    for (int i = 0; i < N - 1; ++i) {
-        if (recv(s->sockfd, buf, sizeof buf, 0) == -1)
-            ERROR;
-        array_to_mpz(Cs[i], buf, sizeof buf);
-    }
-
-    for (int j = 0; j < num_ots; ++j) {
-        long choice;
-
-        choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
-        // choose random k
-        mpz_urandomb(ks[j], s->p.rnd, FIELD_SIZE * 8);
-        mpz_mod(ks[j], ks[j], s->p.q);
-        // compute pks = g^k
-        mpz_powm(pks, s->p.g, ks[j], s->p.p);
-        // compute pk0 = C_1 / g^k regardless of whether our choice is 0 or 1 to
-        // avoid a potential side-channel attack
-        (void) mpz_invert(pk0, pks, s->p.p);
-        mpz_mul(pk0, pk0, Cs[0]);
-        mpz_mod(pk0, pk0, s->p.p);
-        mpz_set(pk0, choice == 0 ? pks : pk0);
-        mpz_to_array(buf, pk0, sizeof buf);
-        // send pk0 to sender
-        if (send(s->sockfd, buf, sizeof buf, 0) == -1)
-            ERROR;
-    }
-
-    for (int j = 0; j < num_ots; ++j) {
-        long choice;
-
-        choice = PyLong_AsLong(PySequence_GetItem(py_choices, j));
-
-        // compute decryption key (g^r)^k
-        mpz_powm(ks[j], gr, ks[j], s->p.p);
-
-        for (int i = 0; i < N; ++i) {
-            // get H xor M0 from sender
-            if (recv(s->sockfd, msg, msglength, 0) == -1)
-                ERROR;
-            mpz_to_array(buf, ks[j], sizeof buf);
-            sha1_hash(from, msglength, i, (unsigned char *) buf, FIELD_SIZE);
-            xorarray((unsigned char *) msg, msglength,
-                     (unsigned char *) from, msglength);
-            if (i == choice) {
-                PyObject *str = PyString_FromStringAndSize(msg, msglength);
-                if (str == NULL) {
-                    ERROR;
-                } else
-                    PyTuple_SetItem(py_return, j, str);
-            }
-        }
-    }
-
- cleanup:
-    mpz_clears(gr, pk0, pks, NULL);
-
-    if (ks) {
-        for (int j = 0; j < num_ots; ++j) {
-            mpz_clear(ks[j]);
-        }
-        free(ks);
-    }
-    if (Cs) {
-        for (int i = 0; i < N - 1; ++i)
-            mpz_clear(Cs[i]);
-        free(Cs);
-    }
-    if (msg)
-        free(msg);
-    if (from)
-        free(from);
-
-    // TODO: clean up py_return if error
+    // TODO: cleanup out on error
 
     if (err)
         return NULL;
     else
-        return py_return;
+        return out;
 }
