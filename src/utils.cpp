@@ -1,4 +1,4 @@
-#include <Python.h>
+// #include <Python.h>
 #include "utils.h"
 
 #include <sys/socket.h>
@@ -14,13 +14,13 @@ current_time(void)
     return (double) (t.tv_sec + (double) (t.tv_usec / 1000000.0));
 }
 
-void *
-pymalloc(size_t size)
-{
-    void *r = malloc(size);
-    if (r == NULL) {
-        PyErr_SetString(PyExc_MemoryError, "malloc failed");
-    }
-    return r;
-}
+// void *
+// pymalloc(size_t size)
+// {
+//     void *r = malloc(size);
+//     if (r == NULL) {
+//         PyErr_SetString(PyExc_MemoryError, "malloc failed");
+//     }
+//     return r;
+// }
 

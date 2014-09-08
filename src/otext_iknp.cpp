@@ -23,7 +23,7 @@ int
 otext_iknp_send(struct state *st, void *msgs, long nmsgs,
                 unsigned int msglength, unsigned int secparam,
                 char *s, int slen, unsigned char *array,
-                msg_reader msg_reader, item_reader item_reader)
+                ot_msg_reader msg_reader, ot_item_reader item_reader)
 {
     double start, end;
     // cmp_ctx_t cmp;

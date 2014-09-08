@@ -87,7 +87,7 @@ py_state_init(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "ssii", &host, &port, &length, &isserver))
         return NULL;
 
-    st = (struct state *) pymalloc(sizeof(struct state));
+    st = (struct state *) malloc(sizeof(struct state));
     if (st == NULL)
         goto error;
 

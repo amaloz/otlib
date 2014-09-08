@@ -16,7 +16,7 @@ random_permutation(unsigned int *array, unsigned int size,
 {
     unsigned int *tmp;
 
-    tmp = (unsigned int *) pymalloc(sizeof(unsigned int) * size);
+    tmp = (unsigned int *) malloc(sizeof(unsigned int) * size);
     if (tmp == NULL)
         return FAILURE;
 

@@ -1,4 +1,5 @@
 #include "py_otext_iknp.h"
+#include "py_ot.h"
 
 #include "../otext_iknp.h"
 #include "../crypto.h"
@@ -11,7 +12,7 @@ to_array(PyObject *columns, int nrows, int ncols)
     double start, end;
 
     start = current_time();
-    array = (unsigned char *) pymalloc(nrows * ncols / 8);
+    array = (unsigned char *) malloc(nrows * ncols / 8);
     if (array == NULL)
         return NULL;
     memset(array, '\0', nrows * ncols / 8);
@@ -109,7 +110,7 @@ otext_iknp_matrix_xor(PyObject *self, PyObject *args)
 
     assert((int) rlen == (int) m);
 
-    t_xor_r = (char *) pymalloc(sizeof(char) * m);
+    t_xor_r = (char *) malloc(sizeof(char) * m);
     if (t_xor_r == NULL)
         return NULL;
 
@@ -134,19 +135,6 @@ otext_iknp_matrix_xor(PyObject *self, PyObject *args)
     }
 
     return py_return;
-}
-
-void *
-py_msg_reader(void *msgs, int idx)
-{
-    return (void *) PySequence_GetItem((PyObject *) msgs, idx);
-}
-
-void
-py_item_reader(void *item, int idx, void *m, ssize_t *mlen)
-{
-    (void) PyBytes_AsStringAndSize(PySequence_GetItem((PyObject *) item, idx),
-                                   (char **) m, mlen);
 }
 
 PyObject *
@@ -183,7 +171,7 @@ py_otext_iknp_send(PyObject *self, PyObject *args)
     }
 
     err = otext_iknp_send(st, py_msgs, m, msglength, secparam, s, slen, tarray,
-                          py_msg_reader, py_item_reader);
+                          py_ot_msg_reader, py_ot_item_reader);
 
  cleanup:
     if (array)

@@ -13,6 +13,8 @@ extra_sources = [
     'otext_nnob.cpp',
     # python wrappers
     'python/py_state.cpp',
+    'python/py_ot.cpp',
+    'python/py_ot_np.cpp',
     'python/py_otext_iknp.cpp',
     # utils
     'crypto.cpp',

@@ -45,10 +45,10 @@ otext_nnob_send(PyObject *self, PyObject *args)
 
     num = ceil(8.0 / 3.0 * secparam);
 
-    Ls = (char *) pymalloc(m * num / 8);
+    Ls = (char *) malloc(m * num / 8);
     if (Ls == NULL)
         ERROR;
-    bitstring = (char *) pymalloc(m * num / 8);
+    bitstring = (char *) malloc(m * num / 8);
     if (bitstring == NULL)
         ERROR;
 
@@ -79,10 +79,10 @@ otext_nnob_send(PyObject *self, PyObject *args)
     /* Step 8 */
 
     seed = gmp_urandomb_ui(st->p.rnd, sizeof(unsigned int) * 8);
-    perm = (unsigned int *) pymalloc(sizeof(unsigned int) * num);
+    perm = (unsigned int *) malloc(sizeof(unsigned int) * num);
     if (perm == NULL)
         ERROR;
-    S = (unsigned int *) pymalloc(sizeof(unsigned int) * num / 2);
+    S = (unsigned int *) malloc(sizeof(unsigned int) * num / 2);
     if (S == NULL)
         ERROR;
     (void) random_permutation(perm, num, S, seed);
@@ -93,7 +93,7 @@ otext_nnob_send(PyObject *self, PyObject *args)
 
     /* Step 9 */
 
-    D = (unsigned int *) pymalloc(sizeof(unsigned int) * num / 2);
+    D = (unsigned int *) malloc(sizeof(unsigned int) * num / 2);
     if (D == NULL)
         ERROR;
 
@@ -115,7 +115,7 @@ otext_nnob_send(PyObject *self, PyObject *args)
 
     /* Step 9b */
 
-    Zs = (char *) pymalloc(m * num / 8);
+    Zs = (char *) malloc(m * num / 8);
     if (Zs == NULL)
         ERROR;
 
@@ -187,17 +187,17 @@ otext_nnob_receive(PyObject *self, PyObject *args)
 
     num = ceil(8.0 / 3.0 * secparam);
 
-    Lzeros = (char *) pymalloc(m * num / 8);
+    Lzeros = (char *) malloc(m * num / 8);
     if (Lzeros == NULL) {
         err = 1;
         goto cleanup;
     }
-    Lones = (char *) pymalloc(m * num / 8);
+    Lones = (char *) malloc(m * num / 8);
     if (Lones == NULL) {
         err = 1;
         goto cleanup;
     }
-    bitstring = (char *) pymalloc(m * num / 8);
+    bitstring = (char *) malloc(m * num / 8);
     if (bitstring == NULL) {
         err = 1;
         goto cleanup;
