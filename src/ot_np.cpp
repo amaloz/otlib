@@ -21,10 +21,23 @@
 
 #include <gmp.h>
 #include <openssl/sha.h>
+#include "aes.h"
 
-// static const char *tag = "OT-NP";
+#define SHA
+
+#if !defined AES_HW && !defined AES_SW && !defined SHA && !defined GHASH
+#error one of AES_HW, AES_SW, SHA, GHASH must be defined
+#endif
 
 #define ERROR { err = 1; goto cleanup; }
+
+#ifdef GHASH
+#include "ghash.h"
+#endif
+
+#ifdef AES_SW
+static const char *keydata = "abcdefg";
+#endif
 
 int
 ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
@@ -34,6 +47,20 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
     mpz_t *Cs = NULL, *Crs = NULL, *pk0s = NULL;
     char buf[FIELD_SIZE], *msg = NULL;
     int err = 0;
+
+#ifdef AES_HW
+    fprintf(stderr, "OT-NP: Using AESNI\n");
+#endif
+#ifdef AES_SW
+    fprintf(stderr, "OT-NP: Using AES\n");
+#endif
+#ifdef SHA
+    fprintf(stderr, "OT-NP: Using SHA-1\n");
+#endif
+#ifdef GHASH
+    fprintf(stderr, "OT-NP: Using GHASH\n");
+#endif
+
 
     mpz_inits(r, gr, pk, pk0, NULL);
 
@@ -53,6 +80,16 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
     for (int i = 0; i < num_ots; ++i) {
         mpz_init(pk0s[i]);
     }
+
+#ifdef AES_SW
+    EVP_CIPHER_CTX enc, dec;
+    aes_init((unsigned char *) keydata, strlen(keydata), &enc, &dec);
+#endif
+
+#ifdef AES_HW
+    AES_KEY key;
+    AES_set_encrypt_key((unsigned char *) "abcd", 128, &key);
+#endif
 
     // choose r \in_R Zq
     random_element(r, &st->p);
@@ -104,13 +141,47 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
                 mpz_mod(pk, pk, st->p.p);
                 mpz_to_array(buf, pk, sizeof buf);
             }
-            sha1_hash(msg, msglength, i, (unsigned char *) buf, FIELD_SIZE);
+
             ot_item_reader(item, i, &m, &mlen);
             assert(mlen <= msglength);
+
+#ifdef AES_SW
+            unsigned char *ctxt;
+            int len = sizeof buf;
+            ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
+#endif
+
+#ifdef AES_HW
+            unsigned char ctxt[FIELD_SIZE];
+            AES_encrypt((unsigned char *) buf, ctxt, &key);
+#endif
+
+#if defined AES_SW || defined AES_HW
+            xorarray(ctxt, msglength, (unsigned char *) m, mlen);
+            if (send(st->sockfd, ctxt, msglength, 0) == -1)
+                ERROR;
+#endif
+
+#ifdef SHA
+            sha1_hash(msg, msglength, i, (unsigned char *) buf, FIELD_SIZE);
             xorarray((unsigned char *) msg, msglength,
                      (unsigned char *) m, mlen);
             if (send(st->sockfd, msg, msglength, 0) == -1)
                 ERROR;
+#endif
+
+#ifdef GHASH
+            __m128i k = _mm_load_si128((__m128i *) "a");
+            __m128i bufm = _mm_load_si128((__m128i *) buf);
+            __m128i res;
+            ghash(k, &bufm, FIELD_SIZE, &res);
+            _mm_store_si128((__m128i *) msg, res);
+            xorarray((unsigned char *) msg, msglength,
+                     (unsigned char *) m, mlen);
+            if (send(st->sockfd, msg, msglength, 0) == -1)
+                ERROR;
+#endif
+
         }
     }
 
@@ -170,6 +241,16 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
         mpz_init(ks[j]);
     }
 
+#ifdef AES_SW
+    EVP_CIPHER_CTX enc, dec;
+    aes_init((unsigned char *) keydata, strlen(keydata), &enc, &dec);
+#endif
+
+#ifdef AES_HW
+    AES_KEY key;
+    AES_set_encrypt_key((unsigned char *) "abcd", 128, &key);
+#endif
+
     // get g^r from sender
     if (recv(st->sockfd, buf, sizeof buf, 0) == -1)
         ERROR;
@@ -216,9 +297,38 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
             if (recv(st->sockfd, msg, maxlength, 0) == -1)
                 ERROR;
             mpz_to_array(buf, ks[j], sizeof buf);
+
+#ifdef AES_SW
+            unsigned char *ctxt;
+            int len = sizeof buf;
+            ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
+#endif
+
+#ifdef AES_HW
+            unsigned char ctxt[FIELD_SIZE];
+            AES_encrypt((unsigned char *) buf, ctxt, &key);
+#endif
+
+#if defined AES_SW || defined AES_HW
+            xorarray((unsigned char *) msg, maxlength, ctxt, maxlength);
+#endif
+
+#ifdef SHA
             sha1_hash(from, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
             xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) from, maxlength);
+#endif
+
+#ifdef GHASH
+            __m128i k = _mm_load_si128((__m128i *) "a");
+            __m128i bufm = _mm_load_si128((__m128i *) buf);
+            __m128i res;
+            ghash(k, &bufm, FIELD_SIZE, &res);
+            _mm_store_si128((__m128i *) from, res);
+            xorarray((unsigned char *) msg, maxlength,
+                     (unsigned char *) from, maxlength);
+#endif
+
             if (i == choice) {
                 ot_msg_writer(out, j, msg, maxlength);
             }

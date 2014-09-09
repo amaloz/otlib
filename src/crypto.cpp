@@ -1,5 +1,6 @@
 #include "crypto.h"
 
+#include <openssl/aes.h>
 #include <openssl/sha.h>
 #include <string.h>
 
@@ -79,6 +80,50 @@ sha1_hash(char *output, size_t outputlen, int counter,
         (void) memcpy(output + length, hash, n);
         length += n;
     }
+}
+
+int
+aes_init(unsigned char *keydata, int keydatalen,
+         EVP_CIPHER_CTX *enc, EVP_CIPHER_CTX *dec)
+{
+    unsigned char key[32] = "abcd", iv[32] = "abcd";
+
+    EVP_CIPHER_CTX_init(enc);
+    EVP_EncryptInit_ex(enc, EVP_aes_128_cbc(), NULL, key, iv);
+    EVP_CIPHER_CTX_set_padding(enc, 0);
+    EVP_CIPHER_CTX_init(dec);
+    EVP_DecryptInit_ex(dec, EVP_aes_128_cbc(), NULL, key, iv);
+    EVP_CIPHER_CTX_set_padding(dec, 0);
+
+    return 0;
+}
+
+unsigned char *
+aes_encrypt(EVP_CIPHER_CTX *ctx, unsigned char *data, int *len)
+{
+    int c_len = *len, f_len = 0;
+    unsigned char *ctxt = (unsigned char *) malloc(c_len);
+
+    EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, NULL);
+    EVP_EncryptUpdate(ctx, ctxt, &c_len, data, *len);
+    EVP_EncryptFinal_ex(ctx, ctxt + c_len, &f_len);
+
+    *len = c_len + f_len;
+    return ctxt;
+}
+
+unsigned char *
+aes_decrypt(EVP_CIPHER_CTX *ctx, unsigned char *ctxt, int *len)
+{
+    int p_len = *len, f_len = 0;
+    unsigned char *ptxt = (unsigned char *) malloc(p_len + AES_BLOCK_SIZE);
+
+    // EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, NULL);
+    EVP_DecryptUpdate(ctx, ptxt, &p_len, ctxt, *len);
+    EVP_DecryptFinal_ex(ctx, ptxt + p_len, &f_len);
+
+    *len = p_len + f_len;
+    return ptxt;
 }
 
 void

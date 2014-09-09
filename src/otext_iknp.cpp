@@ -20,6 +20,16 @@
 
 #include "cmp/cmp.h"
 
+#define SHA
+
+#if !defined AES_HW && !defined AES_SW && !defined SHA
+#error one of AES_HW, AES_SW, SHA must be defined
+#endif
+
+#ifdef AES_HW
+#include "aes.h"
+#endif
+
 int
 otext_iknp_send(struct state *st, void *msgs, long nmsgs,
                 unsigned int msglength, unsigned int secparam,
@@ -30,6 +40,21 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
     // cmp_ctx_t cmp;
     int err = 0;
     char *msg = NULL;
+
+#ifdef AES_HW
+    fprintf(stderr, "OTEXT-IKNP: Using AESNI\n");
+#endif
+#ifdef AES_SW
+    fprintf(stderr, "OTEXT-IKNP: Using AES\n");
+#endif
+#ifdef SHA
+    fprintf(stderr, "OTEXT-IKNP: Using SHA-1\n");
+#endif
+
+#ifdef AES_HW
+    AES_KEY key;
+    AES_set_encrypt_key((unsigned char *) "abcd", 128, &key);
+#endif
 
     start = current_time();
     // cmp_init(&cmp, &st->sockfd, reader, writer);
@@ -57,8 +82,14 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
                 xorarray((unsigned char *) hash, sizeof hash,
                          (unsigned char *) s, slen);
             }
+#ifdef AES_HW
+            AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
+#endif
+
+#ifdef SHA
             sha1_hash(msg, msglength, j,
                       (unsigned char *) hash, SHA_DIGEST_LENGTH);
+#endif
 
             item_reader(item, i, &m, &mlen);
             assert(mlen <= msglength);
@@ -94,6 +125,11 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
     char *from = NULL, *msg = NULL;
     double start, end;
     int err = 0;
+
+#ifdef AES_HW
+    AES_KEY key;
+    AES_set_encrypt_key((unsigned char *) "abcd", 128, &key);
+#endif
 
     from = (char *) malloc(sizeof(char) * maxlength);
     if (from == NULL) {
@@ -132,8 +168,14 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
             t = &array[j * (secparam / 8)];
             (void) memset(hash, '\0', sizeof hash);
             (void) memcpy(hash, t, secparam / 8);
+#ifdef AES_HW
+            AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
+#endif
+
+#ifdef SHA
             sha1_hash(msg, maxlength, j, (unsigned char *) hash,
                       SHA_DIGEST_LENGTH);
+#endif
 
             xorarray((unsigned char *) from, maxlength,
                      (unsigned char *) msg, maxlength);
