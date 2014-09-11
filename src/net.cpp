@@ -1,5 +1,3 @@
-#include <Python.h>
-
 #include "net.h"
 
 #include <errno.h>
@@ -9,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -35,7 +34,6 @@ init_server(const char *addr, const char *port)
     hints.ai_flags = AI_PASSIVE;
 
     if ((rv = getaddrinfo(addr, port, &hints, &servinfo)) != 0) {
-        PyErr_SetString(PyExc_RuntimeError, gai_strerror(rv));
         return -1;
     }
 
@@ -44,10 +42,13 @@ init_server(const char *addr, const char *port)
                              p->ai_protocol)) == -1) {
             continue;
         }
-        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-                       sizeof yes) == -1) {
+        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
             continue;
         }
+        // if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof yes) == -1) {
+        //     continue;
+        // }
+
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
             close(sockfd);
             continue;
@@ -56,14 +57,12 @@ init_server(const char *addr, const char *port)
     }
 
     if (p == NULL)  {
-        PyErr_SetString(PyExc_RuntimeError, "failed to bind");
         return -1;
     }
 
     freeaddrinfo(servinfo);
 
     if (listen(sockfd, BACKLOG) == -1) {
-        PyErr_SetString(PyExc_RuntimeError, strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -83,7 +82,6 @@ init_client(const char *addr, const char *port)
     hints.ai_socktype = SOCK_STREAM;
 
     if ((rv = getaddrinfo(addr, port, &hints, &servinfo)) != 0) {
-        PyErr_SetString(PyExc_RuntimeError, gai_strerror(rv));
         return -1;
     }
 
@@ -99,7 +97,6 @@ init_client(const char *addr, const char *port)
     }
 
     if (p == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "failed to connect");
         sockfd = -1;
         goto cleanup;
     }
@@ -112,35 +109,71 @@ init_client(const char *addr, const char *port)
     return sockfd;
 }
 
+/* modified from
+   http://beej.us/guide/bgnet/output/html/multipage/advanced.html#sendall */
 int
-pysend(int socket, const void *buffer, size_t length, int flags)
+sendall(int s, char *buf, size_t len)
 {
     size_t total = 0;
-    size_t bytesleft = length;
-    ssize_t n;
+    size_t bytesleft = len;
+    int n;
 
-    while (total < length) {
-        n = send(socket, (char *) buffer + total, bytesleft, flags);
-        if (n == -1) {
-            PyErr_SetString(PyExc_RuntimeError, strerror(errno));
-            return -1;
-        }
+    while (total < len) {
+        n = send(s, buf + total, bytesleft, 0);
+        if (n == -1)
+            break;
         total += n;
         bytesleft -= n;
     }
-    // if (send(socket, buffer, length, flags) == -1) {
-    //     PyErr_SetString(PyExc_RuntimeError, strerror(errno));
-    //     return -1;
-    // }
-    return 0;
+    return n == -1 ? -1 : 0;
 }
 
 int
-pyrecv(int socket, void *buffer, size_t length, int flags)
+recvall(int s, char *buf, size_t len)
 {
-    if (recv(socket, buffer, length, flags) == -1) {
-        PyErr_SetString(PyExc_RuntimeError, strerror(errno));
-        return -1;
+    size_t total = 0;
+    size_t bytesleft = len;
+    int n;
+
+    while (total < len) {
+        n = recv(s, buf + total, bytesleft, 0);
+        if (n == -1)
+            break;
+        total += n;
+        bytesleft -= n;
     }
-    return 0;
+    return n == -1 ? -1 : 0;
 }
+
+// int
+// pysend(int socket, const void *buffer, size_t length, int flags)
+// {
+//     size_t total = 0;
+//     size_t bytesleft = length;
+//     ssize_t n;
+
+//     while (total < length) {
+//         n = send(socket, (char *) buffer + total, bytesleft, flags);
+//         if (n == -1) {
+//             PyErr_SetString(PyExc_RuntimeError, strerror(errno));
+//             return -1;
+//         }
+//         total += n;
+//         bytesleft -= n;
+//     }
+//     // if (send(socket, buffer, length, flags) == -1) {
+//     //     PyErr_SetString(PyExc_RuntimeError, strerror(errno));
+//     //     return -1;
+//     // }
+//     return 0;
+// }
+
+// int
+// pyrecv(int socket, void *buffer, size_t length, int flags)
+// {
+//     if (recv(socket, buffer, length, flags) == -1) {
+//         PyErr_SetString(PyExc_RuntimeError, strerror(errno));
+//         return -1;
+//     }
+//     return 0;
+// }

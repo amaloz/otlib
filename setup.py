@@ -8,9 +8,9 @@ __author__ = 'Alex J. Malozemoff'
 
 extra_sources = [
     'ot_np.cpp',
-    'ot_pvw.cpp',
+    #'ot_pvw.cpp',
     'otext_iknp.cpp',
-    'otext_nnob.cpp',
+    #'otext_nnob.cpp',
     # python wrappers
     'python/py_state.cpp',
     'python/py_ot.cpp',

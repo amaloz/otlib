@@ -170,8 +170,8 @@ py_otext_iknp_send(PyObject *self, PyObject *args)
         goto cleanup;
     }
 
-    err = otext_iknp_send(st, py_msgs, m, msglength, secparam, s, slen, tarray,
-                          py_ot_msg_reader, py_ot_item_reader);
+    err = otext_iknp_send(st, py_msgs, m, msglength, secparam / 8, s, slen,
+                          tarray, py_ot_msg_reader, py_ot_item_reader);
 
  cleanup:
     if (array)
@@ -198,6 +198,8 @@ py_otext_iknp_recv(PyObject *self, PyObject *args)
                           &maxlength, &secparam))
         return NULL;
 
+    // fprintf(stderr, "RUNNING\n");
+
     st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
     if (st == NULL)
         return NULL;
@@ -219,6 +221,8 @@ py_otext_iknp_recv(PyObject *self, PyObject *args)
     }
 
     py_return = PyTuple_New(nchoices);
+
+    // fprintf(stderr, "ENTERING\n");
 
     err = otext_iknp_recv(st, py_choices, nchoices, maxlength, secparam, tarray,
                           py_return, py_ot_choice_reader, py_ot_msg_writer);

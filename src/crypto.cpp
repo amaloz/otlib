@@ -4,6 +4,8 @@
 #include <openssl/sha.h>
 #include <string.h>
 
+#include <wmmintrin.h>
+
 #include "utils.h"
 
 /*
@@ -133,6 +135,13 @@ xorarray(unsigned char *a, const size_t alen,
     size_t i;
 
     assert(alen >= blen);
+    // assert(blen % 16 == 0);
+    // for (i = 0; i < blen; i += 16) {
+    //     __m128i am = _mm_load_si128((__m128i *) (a + i));
+    //     __m128i bm = _mm_load_si128((__m128i *) (b + i));
+    //     am = _mm_xor_si128(am, bm);
+    //     _mm_store_si128((__m128i *) (a + i), am);
+    // }
     for (i = 0; i < blen; ++i) {
         a[i] ^= b[i];
     }

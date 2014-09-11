@@ -57,12 +57,13 @@ state_initialize(struct state *s, long length)
 static void
 state_cleanup(struct state *s)
 {
-    mpz_clears(s->p.p, s->p.g, s->p.q, NULL);
-    gmp_randclear(s->p.rnd);
-    if (s->sockfd != -1)
-        close(s->sockfd);
     if (s->serverfd != -1)
         close(s->serverfd);
+    if (s->sockfd != -1)
+        close(s->sockfd);
+
+    mpz_clears(s->p.p, s->p.g, s->p.q, NULL);
+    gmp_randclear(s->p.rnd);
     free(s);
 }
 
@@ -137,4 +138,22 @@ py_state_init(PyObject *self, PyObject *args)
     }
 
     return NULL;
+}
+
+PyObject *
+py_state_cleanup(PyObject *self, PyObject *args)
+{
+    PyObject *py_state;
+    struct state *st;
+
+    if (!PyArg_ParseTuple(args, "O", &py_state))
+        return NULL;
+
+    st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
+    if (st == NULL)
+        return NULL;
+
+    state_cleanup(st);
+
+    Py_RETURN_NONE;
 }

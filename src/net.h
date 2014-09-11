@@ -15,9 +15,15 @@ int
 init_client(const char *addr, const char *port);
 
 int
-pysend(int socket, const void *buffer, size_t length, int flags);
+sendall(int s, char *buf, size_t len);
 
 int
-pyrecv(int socket, void *buffer, size_t length, int flags);
+recvall(int s, char *buf, size_t len);
+
+/* int */
+/* pysend(int socket, const void *buffer, size_t length, int flags); */
+
+/* int */
+/* pyrecv(int socket, void *buffer, size_t length, int flags); */
 
 #endif

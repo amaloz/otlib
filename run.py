@@ -51,7 +51,7 @@ def receiver(args):
         ot = pvw.OTReceiver(state)
         r = ot.receive(choices, MAXLENGTH)
     end = time.time()
-    print(r[:10])
+    print(r[:4])
     print('Receiver time (%d iterations): %f' % (args.niters, end - start))
 
 

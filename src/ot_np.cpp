@@ -40,7 +40,7 @@ static const char *keydata = "abcdefg";
 #endif
 
 int
-ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
+ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
            ot_msg_reader ot_msg_reader, ot_item_reader ot_item_reader)
 {
     mpz_t r, gr, pk, pk0;
@@ -61,10 +61,9 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
     fprintf(stderr, "OT-NP: Using GHASH\n");
 #endif
 
-
     mpz_inits(r, gr, pk, pk0, NULL);
 
-    msg = (char *) malloc(sizeof(char) * msglength);
+    msg = (char *) malloc(sizeof(char) * maxlength);
     if (msg == NULL)
         ERROR;
     Cs = (mpz_t *) malloc(sizeof(mpz_t) * (N - 1));
@@ -104,12 +103,12 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
 
     // send g^r to receiver
     mpz_to_array(buf, gr, sizeof buf);
-    if (send(st->sockfd, buf, sizeof buf, 0) == -1)
+    if (sendall(st->sockfd, buf, sizeof buf) == -1)
         ERROR;
     // send Cs to receiver
     for (int i = 0; i < N - 1; ++i) {
         mpz_to_array(buf, Cs[i], sizeof buf);
-        if (send(st->sockfd, buf, sizeof buf, 0) == -1)
+        if (sendall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
     }
 
@@ -120,16 +119,19 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
 
     for (int j = 0; j < num_ots; ++j) {
         // get pk0 from receiver
-        if (recv(st->sockfd, buf, sizeof buf, 0) == -1)
+        if (recvall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
         array_to_mpz(pk0s[j], buf, sizeof buf);
     }
 
     for (int j = 0; j < num_ots; ++j) {
-        void *item = ot_msg_reader(msgs, j);
+
+        void *ot = ot_msg_reader(msgs, j);
+
         for (int i = 0; i < N; ++i) {
-            ssize_t mlen;
-            char *m;
+            char *item;
+            ssize_t itemlength;
+
 
             if (i == 0) {
                 // compute pk0^r
@@ -142,31 +144,32 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
                 mpz_to_array(buf, pk, sizeof buf);
             }
 
-            ot_item_reader(item, i, &m, &mlen);
-            assert(mlen <= msglength);
-
 #ifdef AES_SW
             unsigned char *ctxt;
             int len = sizeof buf;
             ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
 #endif
-
 #ifdef AES_HW
             unsigned char ctxt[FIELD_SIZE];
             AES_encrypt((unsigned char *) buf, ctxt, &key);
 #endif
+#ifdef SHA
+            (void) memset(msg, '\0', maxlength);
+            sha1_hash(msg, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
+#endif            
+
+            ot_item_reader(ot, i, &item, &itemlength);
+            assert(itemlength <= maxlength);
 
 #if defined AES_SW || defined AES_HW
-            xorarray(ctxt, msglength, (unsigned char *) m, mlen);
-            if (send(st->sockfd, ctxt, msglength, 0) == -1)
+            xorarray(ctxt, maxlength, (unsigned char *) item, itemlength);
+            if (sendall(st->sockfd, (char *) ctxt, maxlength) == -1)
                 ERROR;
 #endif
-
 #ifdef SHA
-            sha1_hash(msg, msglength, i, (unsigned char *) buf, FIELD_SIZE);
-            xorarray((unsigned char *) msg, msglength,
-                     (unsigned char *) m, mlen);
-            if (send(st->sockfd, msg, msglength, 0) == -1)
+            xorarray((unsigned char *) msg, maxlength,
+                     (unsigned char *) item, itemlength);
+            if (sendall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
 #endif
 
@@ -176,12 +179,11 @@ ot_np_send(struct state *st, void *msgs, int msglength, int num_ots, int N,
             __m128i res;
             ghash(k, &bufm, FIELD_SIZE, &res);
             _mm_store_si128((__m128i *) msg, res);
-            xorarray((unsigned char *) msg, msglength,
+            xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) m, mlen);
-            if (send(st->sockfd, msg, msglength, 0) == -1)
+            if (sendall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
 #endif
-
         }
     }
 
@@ -222,7 +224,7 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
 
     mpz_inits(gr, pk0, pks, NULL);
 
-    msg = (char *) malloc(sizeof(char) * maxlength);
+        msg = (char *) malloc(sizeof(char) * maxlength);
     if (msg == NULL)
         ERROR;
     from = (char *) malloc(sizeof(char) * maxlength);
@@ -252,13 +254,13 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
 #endif
 
     // get g^r from sender
-    if (recv(st->sockfd, buf, sizeof buf, 0) == -1)
+    if (recvall(st->sockfd, buf, sizeof buf) == -1)
         ERROR;
     array_to_mpz(gr, buf, sizeof buf);
 
     // get Cs from sender
     for (int i = 0; i < N - 1; ++i) {
-        if (recv(st->sockfd, buf, sizeof buf, 0) == -1)
+        if (recvall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
         array_to_mpz(Cs[i], buf, sizeof buf);
     }
@@ -280,7 +282,7 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
         mpz_set(pk0, choice == 0 ? pks : pk0);
         mpz_to_array(buf, pk0, sizeof buf);
         // send pk0 to sender
-        if (send(st->sockfd, buf, sizeof buf, 0) == -1)
+        if (sendall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
     }
 
@@ -293,8 +295,9 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
         mpz_powm(ks[j], gr, ks[j], st->p.p);
 
         for (int i = 0; i < N; ++i) {
+            (void) memset(msg, '\0', maxlength);
             // get H xor M0 from sender
-            if (recv(st->sockfd, msg, maxlength, 0) == -1)
+            if (recvall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
             mpz_to_array(buf, ks[j], sizeof buf);
 
@@ -303,18 +306,20 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
             int len = sizeof buf;
             ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
 #endif
-
 #ifdef AES_HW
             unsigned char ctxt[FIELD_SIZE];
             AES_encrypt((unsigned char *) buf, ctxt, &key);
+#endif
+#ifdef SHA
+
+            (void) memset(from, '\0', maxlength);
+            sha1_hash(from, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
 #endif
 
 #if defined AES_SW || defined AES_HW
             xorarray((unsigned char *) msg, maxlength, ctxt, maxlength);
 #endif
-
 #ifdef SHA
-            sha1_hash(from, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
             xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) from, maxlength);
 #endif

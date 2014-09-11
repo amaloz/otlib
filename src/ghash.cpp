@@ -196,7 +196,6 @@ ghashsplitold(__m128i k, __m128i* msg, int len, __m128i *res)
         ghashworker((void *)&i);
         start = start+slen;
     }
-    p
     *res = zero_block();
     for (i = 0; i < NTHREADS; i++)
         *res = xor_block( res1[i], *res);
