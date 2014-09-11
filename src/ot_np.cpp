@@ -25,15 +25,11 @@
 
 #define SHA
 
-#if !defined AES_HW && !defined AES_SW && !defined SHA && !defined GHASH
-#error one of AES_HW, AES_SW, SHA, GHASH must be defined
+#if !defined AES_HW && !defined AES_SW && !defined SHA
+#error one of AES_HW, AES_SW, SHA must be defined
 #endif
 
 #define ERROR { err = 1; goto cleanup; }
-
-#ifdef GHASH
-#include "ghash.h"
-#endif
 
 #ifdef AES_SW
 static const char *keydata = "abcdefg";
@@ -56,9 +52,6 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
 #endif
 #ifdef SHA
     fprintf(stderr, "OT-NP: Using SHA-1\n");
-#endif
-#ifdef GHASH
-    fprintf(stderr, "OT-NP: Using GHASH\n");
 #endif
 
     mpz_inits(r, gr, pk, pk0, NULL);
@@ -132,7 +125,6 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
             char *item;
             ssize_t itemlength;
 
-
             if (i == 0) {
                 // compute pk0^r
                 mpz_powm(pk0, pk0s[j], r, st->p.p);
@@ -150,37 +142,26 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
             ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
 #endif
 #ifdef AES_HW
-            unsigned char ctxt[FIELD_SIZE];
-            AES_encrypt((unsigned char *) buf, ctxt, &key);
+            if (AES_encrypt_message((unsigned char *) buf, sizeof buf,
+                                    (unsigned char *) msg, maxlength, &key))
+                ERROR;
 #endif
 #ifdef SHA
             (void) memset(msg, '\0', maxlength);
-            sha1_hash(msg, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
+            sha1_hash(msg, maxlength, i, (unsigned char *) buf, sizeof buf);
 #endif            
 
             ot_item_reader(ot, i, &item, &itemlength);
             assert(itemlength <= maxlength);
 
-#if defined AES_SW || defined AES_HW
+#if defined AES_SW
             xorarray(ctxt, maxlength, (unsigned char *) item, itemlength);
             if (sendall(st->sockfd, (char *) ctxt, maxlength) == -1)
                 ERROR;
 #endif
-#ifdef SHA
+#if defined SHA || defined AES_HW
             xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) item, itemlength);
-            if (sendall(st->sockfd, msg, maxlength) == -1)
-                ERROR;
-#endif
-
-#ifdef GHASH
-            __m128i k = _mm_load_si128((__m128i *) "a");
-            __m128i bufm = _mm_load_si128((__m128i *) buf);
-            __m128i res;
-            ghash(k, &bufm, FIELD_SIZE, &res);
-            _mm_store_si128((__m128i *) msg, res);
-            xorarray((unsigned char *) msg, maxlength,
-                     (unsigned char *) m, mlen);
             if (sendall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
 #endif
@@ -221,6 +202,7 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
     mpz_t *Cs = NULL, *ks = NULL;
     char buf[FIELD_SIZE], *from = NULL, *msg = NULL;
     int err = 0;
+    double start, end;
 
     mpz_inits(gr, pk0, pks, NULL);
 
@@ -254,23 +236,30 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
 #endif
 
     // get g^r from sender
+    start = current_time();
     if (recvall(st->sockfd, buf, sizeof buf) == -1)
         ERROR;
     array_to_mpz(gr, buf, sizeof buf);
+    end = current_time();
+    fprintf(stderr, "Get g^r from sender: %f\n", end - start);
 
     // get Cs from sender
+    start = current_time();
     for (int i = 0; i < N - 1; ++i) {
         if (recvall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
         array_to_mpz(Cs[i], buf, sizeof buf);
     }
+    end = current_time();
+    fprintf(stderr, "Get Cs from sender: %f\n", end - start);
 
+    start = current_time();
     for (int j = 0; j < nchoices; ++j) {
         long choice;
 
         choice = ot_choice_reader(choices, j);
         // choose random k
-        mpz_urandomb(ks[j], st->p.rnd, FIELD_SIZE * 8);
+        mpz_urandomb(ks[j], st->p.rnd, sizeof buf * 8);
         mpz_mod(ks[j], ks[j], st->p.q);
         // compute pks = g^k
         mpz_powm(pks, st->p.g, ks[j], st->p.p);
@@ -285,6 +274,8 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
         if (sendall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
     }
+    end = current_time();
+    fprintf(stderr, "Send pk0s to sender: %f\n", end - start);
 
     for (int j = 0; j < nchoices; ++j) {
         long choice;
@@ -294,12 +285,12 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
         // compute decryption key (g^r)^k
         mpz_powm(ks[j], gr, ks[j], st->p.p);
 
+
         for (int i = 0; i < N; ++i) {
-            (void) memset(msg, '\0', maxlength);
+            mpz_to_array(buf, ks[j], sizeof buf);
             // get H xor M0 from sender
             if (recvall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
-            mpz_to_array(buf, ks[j], sizeof buf);
 
 #ifdef AES_SW
             unsigned char *ctxt;
@@ -307,29 +298,19 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
             ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
 #endif
 #ifdef AES_HW
-            unsigned char ctxt[FIELD_SIZE];
-            AES_encrypt((unsigned char *) buf, ctxt, &key);
+            if (AES_encrypt_message((unsigned char *) buf, sizeof buf,
+                                    (unsigned char *) from, maxlength, &key))
+                ERROR;
 #endif
 #ifdef SHA
-
             (void) memset(from, '\0', maxlength);
-            sha1_hash(from, maxlength, i, (unsigned char *) buf, FIELD_SIZE);
+            sha1_hash(from, maxlength, i, (unsigned char *) buf, sizeof buf);
 #endif
 
-#if defined AES_SW || defined AES_HW
+#if defined AES_SW
             xorarray((unsigned char *) msg, maxlength, ctxt, maxlength);
 #endif
-#ifdef SHA
-            xorarray((unsigned char *) msg, maxlength,
-                     (unsigned char *) from, maxlength);
-#endif
-
-#ifdef GHASH
-            __m128i k = _mm_load_si128((__m128i *) "a");
-            __m128i bufm = _mm_load_si128((__m128i *) buf);
-            __m128i res;
-            ghash(k, &bufm, FIELD_SIZE, &res);
-            _mm_store_si128((__m128i *) from, res);
+#if defined SHA || defined AES_HW
             xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) from, maxlength);
 #endif

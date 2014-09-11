@@ -16,9 +16,10 @@
 
 */
 
-
-#include <wmmintrin.h>
 #include "aes.h"
+
+#include <string.h>
+#include <wmmintrin.h>
 
 #define EXPAND_ASSIST(v1,v2,v3,v4,shuff_const,aes_const)                \
     v2 = _mm_aeskeygenassist_si128(v4,aes_const);                       \
@@ -157,6 +158,40 @@ AES_set_decrypt_key(const unsigned char *userKey, const int bits, AES_KEY *key)
     AES_KEY temp_key;
     AES_set_encrypt_key(userKey, bits, &temp_key);
     AES_set_decrypt_key_fast(key, &temp_key);
+    return 0;
+}
+
+int
+AES_encrypt_message(const unsigned char *in, size_t inlength,
+                    unsigned char *out, size_t outlength, const AES_KEY *key)
+{
+    const int rnds = ROUNDS(key);
+    const __m128i *sched = ((__m128i *) (key->rd_key));
+    char integer[16];
+    __m128i in128;
+
+    if (inlength != 16)
+        return -1;
+
+    
+    in128 = _mm_load_si128((__m128i *) in);
+    in128 = _mm_xor_si128(in128, sched[0]);
+
+    (void) memset(integer, '\0', sizeof integer);
+
+    for (int i = 0; i < outlength / 16; ++i) {
+        __m128i tmp;
+
+        (void) memcpy(integer, (char *) &i, sizeof i);
+        tmp = _mm_load_si128((__m128i *) integer);
+        tmp = _mm_xor_si128(tmp, in128);
+        for (int j = 1; j < rnds; ++j) {
+            tmp = _mm_aesenc_si128(tmp, sched[j]);
+        }
+        tmp = _mm_aesenclast_si128(tmp, sched[rnds]);
+        _mm_store_si128((__m128i *) (out + i * 16), tmp);
+    }
+
     return 0;
 }
 

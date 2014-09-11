@@ -5,7 +5,7 @@ from __future__ import print_function
 import argparse, random
 
 N = 2
-MAXLENGTH = 4
+MAXLENGTH = 16
 
 import time
 import otlib.ot_np as np

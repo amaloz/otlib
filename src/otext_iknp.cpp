@@ -109,7 +109,9 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
 
             start = current_time();
 #ifdef AES_HW
-            AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
+            AES_encrypt_message((unsigned char *) hash, (unsigned char *) msg,
+                                maxlength, &key);
+            // AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
 #endif
 #ifdef AES_SW
             int len = sizeof hash;
@@ -225,7 +227,9 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
             double start, end;
             start = current_time();
 #ifdef AES_HW
-            AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
+            AES_encrypt_message((unsigned char *) hash, (unsigned char *) msg,
+                                maxlength, &key);
+            // AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
 #endif
 #ifdef AES_SW
             int len = sizeof hash;

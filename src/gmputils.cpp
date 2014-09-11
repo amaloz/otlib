@@ -14,7 +14,7 @@ void
 mpz_to_array(char *buf, const mpz_t n, const size_t buflen)
 {
     size_t len = 0;
-    memset(buf, '\0', FIELD_SIZE);
+    memset(buf, '\0', buflen);
     (void) mpz_export(buf, &len, -1, sizeof(char), 0, 0, n);
 }
 

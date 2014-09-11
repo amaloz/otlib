@@ -78,4 +78,9 @@ AES_ecb_encrypt_blks(block *blks, unsigned nblks, AES_KEY *key);
 void
 AES_ecb_decrypt_blks(block *blks, unsigned nblks, AES_KEY *key);
 
+int
+AES_encrypt_message(const unsigned char *in, size_t inlength,
+                    unsigned char *out, size_t outlength, const AES_KEY *key);
+
+
 #endif
