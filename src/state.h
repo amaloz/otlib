@@ -12,4 +12,6 @@ struct state {
     int serverfd;
 };
 
+extern const unsigned int field_size;
+
 #endif

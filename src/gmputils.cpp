@@ -1,4 +1,6 @@
 #include "gmputils.h"
+
+#include "state.h"
 #include "utils.h"
 
 #include <string.h>
@@ -6,7 +8,7 @@
 void
 random_element(mpz_t out, struct params *p)
 {
-    mpz_urandomb(out, p->rnd, FIELD_SIZE * 8);
+    mpz_urandomb(out, p->rnd, field_size * 8);
     mpz_mod(out, out, p->p);
 }
 
@@ -48,7 +50,7 @@ encode(mpz_t elem, const char *str, size_t strlen, const struct params *p)
 
     mpz_inits(exp, rop, NULL);
 
-    if (strlen >= FIELD_SIZE)
+    if (strlen >= field_size)
         return FAILURE;
     mpz_import(elem, strlen, -1, sizeof str[0], 0, 0, str);
     mpz_add_ui(elem, elem, 1);

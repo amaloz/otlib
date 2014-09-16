@@ -23,6 +23,7 @@ extra_sources = [
     'gmputils.cpp',
     'log.cpp',
     'net.cpp',
+    'state.cpp',
     'utils.cpp',
     # cmp
     'cmp/cmp.c',

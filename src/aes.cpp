@@ -18,6 +18,7 @@
 
 #include "aes.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <wmmintrin.h>
 
@@ -169,17 +170,16 @@ AES_encrypt_message(const unsigned char *in, size_t inlength,
     const __m128i *sched = ((__m128i *) (key->rd_key));
     char integer[16];
     __m128i in128;
+    unsigned char in_short[16];
 
-    if (inlength != 16)
-        return -1;
+    (void) memcpy(in_short, in, 16);
 
-    
-    in128 = _mm_load_si128((__m128i *) in);
+    in128 = _mm_loadu_si128((__m128i *) in_short);
     in128 = _mm_xor_si128(in128, sched[0]);
 
     (void) memset(integer, '\0', sizeof integer);
 
-    for (int i = 0; i < outlength / 16; ++i) {
+    for (unsigned int i = 0; i < outlength / 16; ++i) {
         __m128i tmp;
 
         (void) memcpy(integer, (char *) &i, sizeof i);

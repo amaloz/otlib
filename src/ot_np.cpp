@@ -35,13 +35,16 @@
 static const char *keydata = "abcdefg";
 #endif
 
+/*
+ * Runs sender operations for Naor-Pinkas semi-honest OT
+ */
 int
 ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
            ot_msg_reader ot_msg_reader, ot_item_reader ot_item_reader)
 {
     mpz_t r, gr, pk, pk0;
     mpz_t *Cs = NULL, *Crs = NULL, *pk0s = NULL;
-    char buf[FIELD_SIZE], *msg = NULL;
+    char buf[field_size], *msg = NULL;
     int err = 0;
 
 #ifdef AES_HW
@@ -143,8 +146,10 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
 #endif
 #ifdef AES_HW
             if (AES_encrypt_message((unsigned char *) buf, sizeof buf,
-                                    (unsigned char *) msg, maxlength, &key))
+                                    (unsigned char *) msg, maxlength, &key)) {
+                fprintf(stderr, "ERROR ENCRYPTING\n");
                 ERROR;
+            }
 #endif
 #ifdef SHA
             (void) memset(msg, '\0', maxlength);
@@ -200,7 +205,7 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
 {
     mpz_t gr, pk0, pks;
     mpz_t *Cs = NULL, *ks = NULL;
-    char buf[FIELD_SIZE], *from = NULL, *msg = NULL;
+    char buf[field_size], *from = NULL, *msg = NULL;
     int err = 0;
     double start, end;
 
