@@ -75,7 +75,7 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
     AES_set_encrypt_key((unsigned char *) "abcd", 128, &key);
 #endif
 
-    msg = (char *) malloc(sizeof(char) * maxlength);
+    msg = (char *) ot_malloc(sizeof(char) * maxlength);
     if (msg == NULL) {
         err = 1;
         goto cleanup;
@@ -89,8 +89,6 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
 
         item = msg_reader(msgs, j);
         q = &array[j * secparam];
-
-        // fprintf(stderr, "%d ", j);
 
         for (int i = 0; i < 2; ++i) {
             char *m = NULL;
@@ -111,7 +109,6 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
 #ifdef AES_HW
             AES_encrypt_message((unsigned char *) hash, sizeof hash,
                                 (unsigned char *) msg, maxlength, &key);
-            // AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
 #endif
 #ifdef AES_SW
             int len = sizeof hash;
@@ -131,27 +128,19 @@ otext_iknp_send(struct state *st, void *msgs, long nmsgs,
             end = current_time();
             xortotal += end - start;
 
-            // fprintf(stderr, "B ");
-
             if (send(st->sockfd, msg, maxlength, 0) == -1) {
                 err = 1;
                 goto cleanup;
             }
-
-            // fprintf(stderr, "%d ", i);
         }
-
-        // fprintf(stderr, "\n");
     }
  cleanup:
     if (msg)
-        free(msg);
+        ot_free(msg);
     end = current_time();
     fprintf(stderr, "hash and send: %f\n", end - start);
     fprintf(stderr, "just hash: %f\n", htotal);
     fprintf(stderr, "just xor: %f\n", xortotal);
-
-    // sleep(1);
 
     return err;
 }
@@ -186,12 +175,12 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
     aes_init((unsigned char *) keydata, strlen(keydata), &enc, &dec);
 #endif
 
-    from = (char *) malloc(sizeof(char) * maxlength);
+    from = (char *) ot_malloc(sizeof(char) * maxlength);
     if (from == NULL) {
         err = 1;
         goto cleanup;
     }
-    msg = (char *) malloc(sizeof(char) * maxlength);
+    msg = (char *) ot_malloc(sizeof(char) * maxlength);
     if (msg == NULL) {
         err = 1;
         goto cleanup;
@@ -203,22 +192,14 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
 
         choice = ot_choice_reader(choices, j);
 
-        // fprintf(stderr, "%d ", j);
-        fflush(stderr);
-
         for (int i = 0; i < 2; ++i) {
             char hash[SHA_DIGEST_LENGTH];
             unsigned char *t;
 
-            // fprintf(stderr, "B ");
-
             if (recv(st->sockfd, from, maxlength, 0) == -1) {
-                fprintf(stderr, "%d\n", j);
                 err = 1;
                 goto cleanup;
             }
-
-            // fprintf(stderr, "%d ", i);
 
             t = &array[j * (secparam / 8)];
             (void) memset(hash, '\0', sizeof hash);
@@ -229,7 +210,6 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
 #ifdef AES_HW
             AES_encrypt_message((unsigned char *) hash, sizeof hash,
                                 (unsigned char *) msg, maxlength, &key);
-            // AES_encrypt((unsigned char *) hash, (unsigned char *) msg, &key);
 #endif
 #ifdef AES_SW
             int len = sizeof hash;
@@ -248,8 +228,6 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
                 ot_msg_writer(out, j, from, maxlength);
             }
         }
-
-        // fprintf(stderr, "\n");
     }
     end = current_time();
     fprintf(stderr, "hash and receive: %f\n", end - start);
@@ -257,10 +235,9 @@ otext_iknp_recv(struct state *st, void *choices, long nchoices,
 
  cleanup:
     if (from)
-        free(from);
+        ot_free(from);
     if (msg)
-        free(msg);
+        ot_free(msg);
 
     return err;
 }
-

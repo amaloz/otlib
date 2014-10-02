@@ -84,66 +84,70 @@ sha1_hash(char *output, size_t outputlen, int counter,
     }
 }
 
-int
-aes_init(unsigned char *keydata, int keydatalen,
-         EVP_CIPHER_CTX *enc, EVP_CIPHER_CTX *dec)
-{
-    unsigned char key[32] = "abcd", iv[32] = "abcd";
+// int
+// aes_init(unsigned char *keydata, int keydatalen,
+//          EVP_CIPHER_CTX *enc, EVP_CIPHER_CTX *dec)
+// {
+//     unsigned char key[32] = "abcd", iv[32] = "abcd";
 
-    EVP_CIPHER_CTX_init(enc);
-    EVP_EncryptInit_ex(enc, EVP_aes_128_cbc(), NULL, key, iv);
-    EVP_CIPHER_CTX_set_padding(enc, 0);
-    EVP_CIPHER_CTX_init(dec);
-    EVP_DecryptInit_ex(dec, EVP_aes_128_cbc(), NULL, key, iv);
-    EVP_CIPHER_CTX_set_padding(dec, 0);
+//     EVP_CIPHER_CTX_init(enc);
+//     EVP_EncryptInit_ex(enc, EVP_aes_128_cbc(), NULL, key, iv);
+//     EVP_CIPHER_CTX_set_padding(enc, 0);
+//     EVP_CIPHER_CTX_init(dec);
+//     EVP_DecryptInit_ex(dec, EVP_aes_128_cbc(), NULL, key, iv);
+//     EVP_CIPHER_CTX_set_padding(dec, 0);
 
-    return 0;
-}
+//     return 0;
+// }
 
-unsigned char *
-aes_encrypt(EVP_CIPHER_CTX *ctx, unsigned char *data, int *len)
-{
-    int c_len = *len, f_len = 0;
-    unsigned char *ctxt = (unsigned char *) malloc(c_len);
+// unsigned char *
+// aes_encrypt(EVP_CIPHER_CTX *ctx, unsigned char *data, int *len)
+// {
+//     int c_len = *len, f_len = 0;
+//     unsigned char *ctxt = (unsigned char *) malloc(c_len);
 
-    EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, NULL);
-    EVP_EncryptUpdate(ctx, ctxt, &c_len, data, *len);
-    EVP_EncryptFinal_ex(ctx, ctxt + c_len, &f_len);
+//     EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, NULL);
+//     EVP_EncryptUpdate(ctx, ctxt, &c_len, data, *len);
+//     EVP_EncryptFinal_ex(ctx, ctxt + c_len, &f_len);
 
-    *len = c_len + f_len;
-    return ctxt;
-}
+//     *len = c_len + f_len;
+//     return ctxt;
+// }
 
-unsigned char *
-aes_decrypt(EVP_CIPHER_CTX *ctx, unsigned char *ctxt, int *len)
-{
-    int p_len = *len, f_len = 0;
-    unsigned char *ptxt = (unsigned char *) malloc(p_len + AES_BLOCK_SIZE);
+// unsigned char *
+// aes_decrypt(EVP_CIPHER_CTX *ctx, unsigned char *ctxt, int *len)
+// {
+//     int p_len = *len, f_len = 0;
+//     unsigned char *ptxt = (unsigned char *) malloc(p_len + AES_BLOCK_SIZE);
 
-    // EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, NULL);
-    EVP_DecryptUpdate(ctx, ptxt, &p_len, ctxt, *len);
-    EVP_DecryptFinal_ex(ctx, ptxt + p_len, &f_len);
+//     // EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, NULL);
+//     EVP_DecryptUpdate(ctx, ptxt, &p_len, ctxt, *len);
+//     EVP_DecryptFinal_ex(ctx, ptxt + p_len, &f_len);
 
-    *len = p_len + f_len;
-    return ptxt;
-}
+//     *len = p_len + f_len;
+//     return ptxt;
+// }
 
 void
 xorarray(unsigned char *a, const size_t alen,
          const unsigned char *b, const size_t blen)
 {
-    size_t i;
+    unsigned char tmp[16];
 
     assert(alen >= blen);
-    // assert(blen % 16 == 0);
-    // for (i = 0; i < blen; i += 16) {
-    //     __m128i am = _mm_load_si128((__m128i *) (a + i));
-    //     __m128i bm = _mm_load_si128((__m128i *) (b + i));
-    //     am = _mm_xor_si128(am, bm);
-    //     _mm_store_si128((__m128i *) (a + i), am);
-    // }
-    for (i = 0; i < blen; ++i) {
-        a[i] ^= b[i];
+    for (size_t i = 0; i < blen; i += 16) {
+        __m128i am, bm;
+        int length = blen - i < 16 ? blen - i : 16;
+        
+        am = _mm_loadu_si128((__m128i *) (a + i));
+        bm = _mm_loadu_si128((__m128i *) (b + i));
+        am = _mm_xor_si128(am, bm);
+        // _mm_store_si128((__m128i *) (a + i), am);
+        _mm_store_si128((__m128i *) tmp, am);
+        (void) memcpy(a + i, tmp, length);
     }
+    // for (size_t i = 0; i < blen; ++i) {
+    //     a[i] ^= b[i];
+    // }
 }
 

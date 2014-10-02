@@ -25,15 +25,11 @@
 
 #define SHA
 
-#if !defined AES_HW && !defined AES_SW && !defined SHA
-#error one of AES_HW, AES_SW, SHA must be defined
+#if !defined AES_HW && !defined SHA
+#error one of AES_HW, SHA must be defined
 #endif
 
 #define ERROR { err = 1; goto cleanup; }
-
-#ifdef AES_SW
-static const char *keydata = "abcdefg";
-#endif
 
 /*
  * Runs sender operations for Naor-Pinkas semi-honest OT
@@ -46,40 +42,35 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
     mpz_t *Cs = NULL, *Crs = NULL, *pk0s = NULL;
     char buf[field_size], *msg = NULL;
     int err = 0;
+    double start, end;
 
 #ifdef AES_HW
     fprintf(stderr, "OT-NP: Using AESNI\n");
-#endif
-#ifdef AES_SW
-    fprintf(stderr, "OT-NP: Using AES\n");
 #endif
 #ifdef SHA
     fprintf(stderr, "OT-NP: Using SHA-1\n");
 #endif
 
+    start = current_time();
+
     mpz_inits(r, gr, pk, pk0, NULL);
 
-    msg = (char *) malloc(sizeof(char) * maxlength);
+    msg = (char *) ot_malloc(sizeof(char) * maxlength);
     if (msg == NULL)
         ERROR;
-    Cs = (mpz_t *) malloc(sizeof(mpz_t) * (N - 1));
+    Cs = (mpz_t *) ot_malloc(sizeof(mpz_t) * (N - 1));
     if (Cs == NULL)
         ERROR;
-    Crs = (mpz_t *) malloc(sizeof(mpz_t) * (N - 1));
+    Crs = (mpz_t *) ot_malloc(sizeof(mpz_t) * (N - 1));
     if (Crs == NULL)
         ERROR;
-    pk0s = (mpz_t *) malloc(sizeof(mpz_t) * num_ots);
+    pk0s = (mpz_t *) ot_malloc(sizeof(mpz_t) * num_ots);
     if (pk0s == NULL)
         ERROR;
 
     for (int i = 0; i < num_ots; ++i) {
         mpz_init(pk0s[i]);
     }
-
-#ifdef AES_SW
-    EVP_CIPHER_CTX enc, dec;
-    aes_init((unsigned char *) keydata, strlen(keydata), &enc, &dec);
-#endif
 
 #ifdef AES_HW
     AES_KEY key;
@@ -97,33 +88,47 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
         random_element(Cs[i], &st->p);
     }
 
+    end = current_time();
+    fprintf(stderr, "Initialization: %f\n", end - start);
+
     // send g^r to receiver
+    start = current_time();
     mpz_to_array(buf, gr, sizeof buf);
     if (sendall(st->sockfd, buf, sizeof buf) == -1)
         ERROR;
+    end = current_time();
+    fprintf(stderr, "Send g^r to receiver: %f\n", end - start);
+
     // send Cs to receiver
+    start = current_time();
     for (int i = 0; i < N - 1; ++i) {
         mpz_to_array(buf, Cs[i], sizeof buf);
         if (sendall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
     }
+    end = current_time();
+    fprintf(stderr, "Send Cs to receiver: %f\n", end - start);
 
+    start = current_time();
     for (int i = 0; i < N - 1; ++i) {
         // compute C_i^r
         mpz_powm(Crs[i], Cs[i], r, st->p.p);
     }
+    end = current_time();
+    fprintf(stderr, "Compute C_i^r: %f\n", end - start);
 
+    start = current_time();
     for (int j = 0; j < num_ots; ++j) {
         // get pk0 from receiver
         if (recvall(st->sockfd, buf, sizeof buf) == -1)
             ERROR;
         array_to_mpz(pk0s[j], buf, sizeof buf);
     }
+    end = current_time();
+    fprintf(stderr, "Get pk0 from receiver: %f\n", end - start);
 
     for (int j = 0; j < num_ots; ++j) {
-
         void *ot = ot_msg_reader(msgs, j);
-
         for (int i = 0; i < N; ++i) {
             char *item;
             ssize_t itemlength;
@@ -139,17 +144,10 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
                 mpz_to_array(buf, pk, sizeof buf);
             }
 
-#ifdef AES_SW
-            unsigned char *ctxt;
-            int len = sizeof buf;
-            ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
-#endif
 #ifdef AES_HW
             if (AES_encrypt_message((unsigned char *) buf, sizeof buf,
-                                    (unsigned char *) msg, maxlength, &key)) {
-                fprintf(stderr, "ERROR ENCRYPTING\n");
+                                    (unsigned char *) msg, maxlength, &key))
                 ERROR;
-            }
 #endif
 #ifdef SHA
             (void) memset(msg, '\0', maxlength);
@@ -159,17 +157,10 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
             ot_item_reader(ot, i, &item, &itemlength);
             assert(itemlength <= maxlength);
 
-#if defined AES_SW
-            xorarray(ctxt, maxlength, (unsigned char *) item, itemlength);
-            if (sendall(st->sockfd, (char *) ctxt, maxlength) == -1)
-                ERROR;
-#endif
-#if defined SHA || defined AES_HW
             xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) item, itemlength);
             if (sendall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
-#endif
         }
     }
 
@@ -180,20 +171,20 @@ ot_np_send(struct state *st, void *msgs, int maxlength, int num_ots, int N,
         for (int i = 0; i < num_ots; ++i) {
             mpz_clear(pk0s[i]);
         }
-        free(pk0s);
+        ot_free(pk0s);
     }
     if (Crs) {
         for (int i = 0; i < N - 1; ++i)
             mpz_clear(Crs[i]);
-        free(Crs);
+        ot_free(Crs);
     }
     if (Cs) {
         for (int i = 0; i < N - 1; ++i)
             mpz_clear(Cs[i]);
-        free(Cs);
+        ot_free(Cs);
     }
     if (msg)
-        free(msg);
+        ot_free(msg);
 
     return err;
 }
@@ -209,31 +200,33 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
     int err = 0;
     double start, end;
 
+#ifdef AES_HW
+    fprintf(stderr, "OT-NP: Using AESNI\n");
+#endif
+#ifdef SHA
+    fprintf(stderr, "OT-NP: Using SHA-1\n");
+#endif
+
     mpz_inits(gr, pk0, pks, NULL);
 
-        msg = (char *) malloc(sizeof(char) * maxlength);
+    msg = (char *) ot_malloc(sizeof(char) * maxlength);
     if (msg == NULL)
         ERROR;
-    from = (char *) malloc(sizeof(char) * maxlength);
+    from = (char *) ot_malloc(sizeof(char) * maxlength);
     if (from == NULL)
         ERROR;
-    Cs = (mpz_t *) malloc(sizeof(mpz_t) * (N - 1));
+    Cs = (mpz_t *) ot_malloc(sizeof(mpz_t) * (N - 1));
     if (Cs == NULL)
         ERROR;
     for (int i = 0; i < N - 1; ++i) {
         mpz_init(Cs[i]);
     }
-    ks = (mpz_t *) malloc(sizeof(mpz_t) * nchoices);
+    ks = (mpz_t *) ot_malloc(sizeof(mpz_t) * nchoices);
     if (ks == NULL)
         ERROR;
     for (int j = 0; j < nchoices; ++j) {
         mpz_init(ks[j]);
     }
-
-#ifdef AES_SW
-    EVP_CIPHER_CTX enc, dec;
-    aes_init((unsigned char *) keydata, strlen(keydata), &enc, &dec);
-#endif
 
 #ifdef AES_HW
     AES_KEY key;
@@ -297,11 +290,6 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
             if (recvall(st->sockfd, msg, maxlength) == -1)
                 ERROR;
 
-#ifdef AES_SW
-            unsigned char *ctxt;
-            int len = sizeof buf;
-            ctxt = aes_encrypt(&enc, (unsigned char *) buf, &len);
-#endif
 #ifdef AES_HW
             if (AES_encrypt_message((unsigned char *) buf, sizeof buf,
                                     (unsigned char *) from, maxlength, &key))
@@ -312,13 +300,8 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
             sha1_hash(from, maxlength, i, (unsigned char *) buf, sizeof buf);
 #endif
 
-#if defined AES_SW
-            xorarray((unsigned char *) msg, maxlength, ctxt, maxlength);
-#endif
-#if defined SHA || defined AES_HW
             xorarray((unsigned char *) msg, maxlength,
                      (unsigned char *) from, maxlength);
-#endif
 
             if (i == choice) {
                 ot_msg_writer(out, j, msg, maxlength);
@@ -333,17 +316,17 @@ ot_np_recv(struct state *st, void *choices, int nchoices, int maxlength, int N,
         for (int j = 0; j < nchoices; ++j) {
             mpz_clear(ks[j]);
         }
-        free(ks);
+        ot_free(ks);
     }
     if (Cs) {
         for (int i = 0; i < N - 1; ++i)
             mpz_clear(Cs[i]);
-        free(Cs);
+        ot_free(Cs);
     }
     if (msg)
-        free(msg);
+        ot_free(msg);
     if (from)
-        free(from);
+        ot_free(from);
 
     return err;
 }

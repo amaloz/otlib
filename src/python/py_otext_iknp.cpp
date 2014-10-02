@@ -40,18 +40,6 @@ static const unsigned char MASK_SET_BIT_C[2][8] =
     {{0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1},
      {   0,    0,    0,    0,   0,   0,   0,   0}};
 
-// static bool
-// reader(cmp_ctx_t *ctx, void *data, size_t limit)
-// {
-//     return recv(*((int *) ctx->buf), data, limit, 0);
-// }
-
-// static size_t
-// writer(cmp_ctx_t *ctx, const void *data, size_t count)
-// {
-//     return send(*((int *) ctx->buf), data, count, 0);
-// }
-
 static inline unsigned char
 get_bit(const unsigned char *array, int idx)
 {
@@ -91,27 +79,27 @@ transpose(unsigned char *array, int nrows, int ncols)
 PyObject *
 otext_iknp_matrix_xor(PyObject *self, PyObject *args)
 {
-    PyObject *py_state, *py_T, *py_return = NULL, *py_t_xor_r;
+    PyObject *py_state, *py_matrix, *py_return = NULL;
     struct state *st;
-    char *r, *t_xor_r;
+    char *r, *xors;
     Py_ssize_t rlen;
-    unsigned int m, secparam;
+    unsigned int nchoices, secparam;
 
-    if (!PyArg_ParseTuple(args, "OOs#II", &py_state, &py_T, &r, &rlen,
-                          &m, &secparam))
+    if (!PyArg_ParseTuple(args, "OOs#II", &py_state, &py_matrix, &r, &rlen,
+                          &nchoices, &secparam))
         return NULL;
 
     st = (struct state *) PyCapsule_GetPointer(py_state, NULL);
     if (st == NULL)
         return NULL;
 
-    assert(m % 8 == 0);
-    m = m / 8;
+    assert(nchoices % 8 == 0);
+    nchoices /= 8;
 
-    assert((int) rlen == (int) m);
+    assert((int) rlen == (int) nchoices);
 
-    t_xor_r = (char *) malloc(sizeof(char) * m);
-    if (t_xor_r == NULL)
+    xors = (char *) malloc(sizeof(char) * nchoices);
+    if (xors == NULL)
         return NULL;
 
     py_return = PyTuple_New(secparam);
@@ -121,15 +109,14 @@ otext_iknp_matrix_xor(PyObject *self, PyObject *args)
         char *t;
         Py_ssize_t tlen;
 
-        (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_T, i), &t, &tlen);
-        assert(tlen == m);
-        memcpy(t_xor_r, t, m);
-        xorarray((unsigned char *) t_xor_r, m, (unsigned char *) r, m);
-        py_t_xor_r = PyString_FromStringAndSize(t_xor_r, m);
+        (void) PyBytes_AsStringAndSize(PySequence_GetItem(py_matrix, i), &t, &tlen);
+        assert(tlen == nchoices);
+        memcpy(xors, t, nchoices);
+        xorarray((unsigned char *) xors, nchoices, (unsigned char *) r, nchoices);
 
         tuple = PyTuple_New(2);
-        PyTuple_SetItem(tuple, 0, PySequence_GetItem(py_T, i));
-        PyTuple_SetItem(tuple, 1, py_t_xor_r);
+        PyTuple_SetItem(tuple, 0, PySequence_GetItem(py_matrix, i));
+        PyTuple_SetItem(tuple, 1, PyString_FromStringAndSize(xors, nchoices));
 
         PyTuple_SetItem(py_return, i, tuple);
     }

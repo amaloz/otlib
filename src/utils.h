@@ -28,7 +28,10 @@ extern void __assert_fail (const char *__assertion, const char *__file,
 double
 current_time(void);
 
-/* void * */
-/* pymalloc(size_t size); */
+void *
+ot_malloc(size_t size);
+
+void
+ot_free(void *p);
 
 #endif
