@@ -18,7 +18,7 @@
 #include <openssl/sha.h>
 #include <string.h>
 
-#define SHA
+#define AES_HW
 
 #if !defined AES_HW && !defined AES_SW && !defined SHA
 #error one of AES_HW, AES_SW, SHA must be defined

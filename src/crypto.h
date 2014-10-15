@@ -10,7 +10,7 @@ random_permutation(unsigned int *array, unsigned int size,
 
 void
 sha1_hash(char *output, size_t outputlen, int counter,
-          unsigned char *hash, size_t hashlen);
+          const unsigned char *hash, size_t hashlen);
 
 void
 xorarray(unsigned char *a, const size_t alen,

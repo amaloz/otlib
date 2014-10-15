@@ -60,27 +60,26 @@ random_permutation(unsigned int *array, unsigned int size,
 }
 
 void
-sha1_hash(char *output, size_t outputlen, int counter,
-          unsigned char *hash, size_t hashlen)
+sha1_hash(char *out, size_t outlen, int counter,
+          const unsigned char *in, size_t inlen)
 {
+    unsigned int idx = 0;
     unsigned int length = 0;
+    unsigned char hash[SHA_DIGEST_LENGTH];
 
-    while (length < outputlen) {
+    while (length < outlen) {
         SHA_CTX c;
         int n;
 
         (void) SHA1_Init(&c);
-        if (length == 0) {
-            (void) SHA1_Update(&c, &counter, sizeof counter);
-            (void) SHA1_Update(&c, hash, hashlen);
-            (void) SHA1_Final(hash, &c);
-        } else {
-            (void) SHA1_Update(&c, output + length - hashlen, hashlen);
-            (void) SHA1_Final(hash, &c);
-        }
-        n = MIN(outputlen - length, hashlen);
-        (void) memcpy(output + length, hash, n);
+        (void) SHA1_Update(&c, &counter, sizeof counter);
+        (void) SHA1_Update(&c, &idx, sizeof idx);
+        (void) SHA1_Update(&c, in, inlen);
+        (void) SHA1_Final(hash, &c);
+        n = MIN(outlen - length, sizeof hash);
+        (void) memcpy(out + length, hash, n);
         length += n;
+        idx++;
     }
 }
 
